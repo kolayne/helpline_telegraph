@@ -7,10 +7,16 @@ CREATE TABLE users
     type  user_type NOT NULL
 );
 
+CREATE FUNCTION user_is_operator(integer) RETURNS boolean
+AS
+'SELECT type = ''operator''
+ FROM users
+ WHERE id = $1' LANGUAGE SQL VOLATILE;
+
 CREATE TABLE conversations
 (
-    client_id   integer NOT NULL UNIQUE REFERENCES users,
-    operator_id integer NOT NULL REFERENCES users
+    client_id   integer NOT NULL UNIQUE REFERENCES users CHECK ( not user_is_operator(client_id) ),
+    operator_id integer NOT NULL REFERENCES users CHECK ( user_is_operator(operator_id) )
 );
 
 CREATE TABLE reflected_messages
