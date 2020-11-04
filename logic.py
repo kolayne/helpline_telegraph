@@ -12,9 +12,8 @@ def start_conversation(tg_id: int) -> str:
     """
     with PrettyCursor() as cursor:
         try:
-            cursor.execute("INSERT INTO conversations(client_id, operator_id) SELECT "
-                           "(SELECT id FROM users WHERE tg_id=%s), id FROM users "
-                           "WHERE type='operator' ORDER BY random() LIMIT 1", (tg_id,))
+            cursor.execute("INSERT INTO conversations(client_id, operator_id) SELECT %s, tg_id FROM users WHERE "
+                           "type='operator' ORDER BY random() LIMIT 1", (tg_id,))
         except psycopg2.errors.UniqueViolation:
             return 'conversation already exists'
         except psycopg2.errors.CheckViolation:
