@@ -5,7 +5,7 @@ from traceback import format_exc
 import telebot
 from typing import Callable
 
-from logic import start_conversation
+from logic import add_user, start_conversation
 from config import bot_token
 
 
@@ -47,22 +47,21 @@ def nonfalling_handler(func: Callable):
 @nonfalling_handler
 def start_help_handler(message: telebot.types.Message):
     bot.reply_to(message, "Привет. /start_conversation, чтобы начать беседу, /end_conversation чтобы завершить")
-    raise NotImplementedError()  # Add user to database
+    add_user(message.chat.id)
 
 @bot.message_handler(commands=['start_conversation'])
 @nonfalling_handler
 def start_conversation_handler(message: telebot.types.Message):
-    start_conversation_result = start_conversation(message.chat.id)
-    if start_conversation_result == 'ok':
-        bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
-                              "Используйте /end_conversation чтобы прекратить")
-    elif start_conversation_result == 'conversation already exists':
+    operator_id, local_user_id = start_conversation(message.chat.id)
+    if operator_id == -1:
         bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
-    elif start_conversation_result == 'not a client':
+    elif operator_id == -2:
         bot.reply_to(message, "Операторы не могут запрашивать помощь :(\nОбратитесь к @kolayne для реализации этой "
                               "возможности")
     else:
-        raise RuntimeError("`start_conversation` returned an unexpected value")
+        bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
+                              "Используйте /end_conversation чтобы прекратить")
+        bot.send_message(operator_id, f"Пользователь №{local_user_id} начал беседу с вами")
 
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
