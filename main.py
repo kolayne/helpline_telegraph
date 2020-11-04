@@ -25,7 +25,7 @@ def nonfalling_handler(func: Callable):
             try:
                 s = "Произошла ошибка"
                 try:
-                    bot.send_message(405017295, format_exc())
+                    bot.send_message(405017295, '```' + format_exc() + '```', parse_mode="Markdown")
                 except:
                     s += ". Свяжитесь с @kolayne для исправления"
                 else:
@@ -33,11 +33,10 @@ def nonfalling_handler(func: Callable):
                 try:
                     s += ". Технические детали:\n```" + format_exc() + "```"
                     print(format_exc(), file=stderr)
-                    bot.send_message(405017295, format_exc())
                 except:
                     pass
 
-                bot.send_message(message.chat.id, s)
+                bot.send_message(message.chat.id, s, parse_mode="Markdown")
             except:
                 print(format_exc(), file=stderr)
 
@@ -51,6 +50,7 @@ def start_help_handler(message: telebot.types.Message):
     raise NotImplementedError()  # Add user to database
 
 @bot.message_handler(commands=['start_conversation'])
+@nonfalling_handler
 def start_conversation_handler(message: telebot.types.Message):
     start_conversation_result = start_conversation(message.chat.id)
     if start_conversation_result == 'ok':
@@ -65,11 +65,13 @@ def start_conversation_handler(message: telebot.types.Message):
         raise RuntimeError("`start_conversation` returned an unexpected value")
 
 @bot.message_handler(commands=['end_conversation'])
+@nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
     raise NotImplementedError()
     bot.reply_to(message, "Беседа с оператором прекратилась")
 
 @bot.message_handler(func=lambda message: "conversation has not started")
+@nonfalling_handler
 def conversation_not_started(message: telebot.types.Message):
     bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation")
 
