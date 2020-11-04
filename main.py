@@ -5,7 +5,7 @@ from traceback import format_exc
 import telebot
 from typing import Callable
 
-from logic import add_user, start_conversation
+from logic import add_user, start_conversation, end_conversation
 from config import bot_token
 
 
@@ -66,8 +66,13 @@ def start_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
-    raise NotImplementedError()
-    bot.reply_to(message, "Беседа с оператором прекратилась")
+    ans = end_conversation(message.chat.id)
+    if ans:
+        operator_id, local_user_id = ans
+        bot.reply_to(message, "Беседа с оператором прекратилась")
+        bot.send_message(operator_id, f"Пользователь №{local_user_id} прекратил беседу")
+    else:
+        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
 
 @bot.message_handler(func=lambda message: "conversation has not started")
 @nonfalling_handler

@@ -1,5 +1,5 @@
 import psycopg2.errors
-from typing import Tuple
+from typing import Tuple, Union
 
 from db_connector import PrettyCursor
 
@@ -31,3 +31,21 @@ def start_conversation(tg_client_id: int) -> Tuple[int, int]:
             cursor.execute("SELECT local_id FROM users WHERE tg_id=%s", (tg_client_id,))
             local_client_id, = cursor.fetchone()
             return tg_operator_id, local_client_id
+
+def end_conversation(tg_client_id: int) -> Union[Tuple[int, int], None]:
+    """Stop conversation with an operator
+    Note that this function can only be called with a client id. Operator is unable to end a conversation at the moment
+
+    :param tg_client_id: Telegram id of the client ending the conversation
+    :return: If there is no conversation with the given user as a client, `None` is returned. Otherwise a tuple of two
+            elements is returned, where the first element is the <b>telegram</b> id of the operator of the conversation,
+            the second is the <b>local</b> client id
+    """
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT operator_id, (SELECT local_id FROM users WHERE tg_id=%s) FROM conversations WHERE "
+                       "client_id=%s", (tg_client_id, tg_client_id))
+        ans = cursor.fetchone()
+
+        cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
+
+        return ans
