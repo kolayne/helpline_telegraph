@@ -2,16 +2,16 @@ CREATE TYPE user_type AS ENUM ('client', 'operator');
 
 CREATE TABLE users
 (
-    id    serial PRIMARY KEY,
-    tg_id integer   NOT NULL UNIQUE,
-    type  user_type NOT NULL
+    tg_id    integer   NOT NULL PRIMARY KEY,
+    local_id serial UNIQUE,
+    type     user_type NOT NULL
 );
 
 CREATE FUNCTION user_is_operator(integer) RETURNS boolean
 AS
 'SELECT type = ''operator''
  FROM users
- WHERE id = $1' LANGUAGE SQL VOLATILE;
+ WHERE tg_id = $1' LANGUAGE SQL VOLATILE;
 
 CREATE TABLE conversations
 (
