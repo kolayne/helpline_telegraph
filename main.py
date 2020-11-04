@@ -5,7 +5,7 @@ from traceback import format_exc
 import telebot
 from typing import Callable
 
-from logic import add_user, start_conversation, end_conversation
+from logic import add_user, start_conversation, end_conversation, is_operator, in_conversation_as
 from config import bot_token
 
 
@@ -56,7 +56,7 @@ def start_conversation_handler(message: telebot.types.Message):
     if operator_id == -1:
         bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
     elif operator_id == -2:
-        bot.reply_to(message, "Операторы не могут запрашивать помощь :(\nОбратитесь к @kolayne для реализации этой "
+        bot.reply_to(message, "Операторы не могут запрашивать помощь :(\nОбратитесь к @kolayne для реализации такой "
                               "возможности")
     else:
         bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
@@ -66,6 +66,11 @@ def start_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
+    if is_operator(message.chat.id):
+        bot.reply_to(message, "Оператор не может прекратить беседу. Обратитесь к @kolayne для реализации такой "
+                              "возможности")
+        return
+
     ans = end_conversation(message.chat.id)
     if ans:
         operator_id, local_user_id = ans
@@ -74,7 +79,8 @@ def end_conversation_handler(message: telebot.types.Message):
     else:
         bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
 
-@bot.message_handler(func=lambda message: "conversation has not started")
+@bot.message_handler(func=lambda message: not is_operator(message.chat.id) and
+                                          in_conversation_as(message.chat.id) is None)
 @nonfalling_handler
 def conversation_not_started(message: telebot.types.Message):
     bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation")

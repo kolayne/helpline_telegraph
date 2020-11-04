@@ -9,6 +9,27 @@ def add_user(tg_id: int) -> None:
         cursor.execute("INSERT INTO users(tg_id, type) VALUES (%s , 'client') ON CONFLICT DO NOTHING", (tg_id,))
 
 
+def is_operator(tg_id: int) -> bool:
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT type='operator' FROM users WHERE tg_id=%s", (tg_id,))
+        return cursor.fetchone()[0]
+
+def in_conversation_as(tg_client_id: int) -> Union[str, None]:
+    """Check if the user is in a conversation as a client, as an operator, or not in a conversation
+
+    :param tg_client_id: Telegram id of the user to search for
+    :return: `'operator'` if chatting as an operator, `'client'` if chatting as a client, `None` if not in a
+            conversation
+    """
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT EXISTS(SELECT 1 FROM conversations WHERE operator_id=%s)", (tg_client_id,))
+        if cursor.fetchone()[0]:
+            return 'operator'
+        cursor.execute("SELECT EXISTS(SELECT 1 FROM conversations WHERE client_id=%s)", (tg_client_id,))
+        if cursor.fetchone()[0]:
+            return 'client'
+
+
 def start_conversation(tg_client_id: int) -> Tuple[int, int]:
     """Start conversation with an operator
 
