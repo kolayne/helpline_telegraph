@@ -116,14 +116,6 @@ def text_message_handler(message: telebot.types.Message):
                        "receiver_message_id) VALUES (%s, %s, %s, %s)",
                        (message.chat.id, message.message_id, sent.chat.id, sent.message_id))
 
-@bot.message_handler(content_types=['photo', 'video'])
-@nonfalling_handler
-def photo_or_video_message_handler(message: telebot.types.Message):
-    if message.media_group_id is not None:
-        bot.reply_to(message, "Отправка групп медиа не поддерживается. Они будут отправлены как отдельные сообщения")
-
-    raise NotImplementedError()
-
 @bot.message_handler(content_types=AnyContentType())
 @nonfalling_handler
 def another_content_type_handler(message: telebot.types.Message):
