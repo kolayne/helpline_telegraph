@@ -5,7 +5,8 @@ from traceback import format_exc
 import telebot
 from typing import Callable
 
-from logic import add_user, start_conversation, end_conversation, is_operator, in_conversation_as
+from db_connector import PrettyCursor
+from logic import add_user, start_conversation, end_conversation, is_operator, in_conversation_as, get_operator_id
 from config import bot_token
 
 
@@ -88,7 +89,32 @@ def conversation_not_started(message: telebot.types.Message):
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
-    raise NotImplementedError()
+    if is_operator(message.chat.id):
+        if message.reply_to_message is None:
+            bot.reply_to(message, "Операторы должен отвечать на сообщения. Нельзя написать сообщение просто так")
+            return
+
+        with PrettyCursor() as cursor:
+            cursor.execute("SELECT sender_chat_id, sender_message_id FROM reflected_messages WHERE receiver_chat_id=%s "
+                           "AND receiver_message_id=%s",
+                           (message.reply_to_message.chat.id, message.reply_to_message.message_id))
+            try:
+                chat_id, message_id = cursor.fetchone()
+            except TypeError:
+                bot.reply_to(message, "Не похоже, что сообщение, на которое вы ответили, пришло от вашего собеседника")
+                return
+
+        sent = bot.send_message(chat_id, message.text, reply_to_message_id=message_id)
+    else:
+        if message.reply_to_message is not None:
+            pass
+
+        sent = bot.send_message(get_operator_id(message.chat.id), message.text)
+
+    with PrettyCursor() as cursor:
+        cursor.execute("INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, "
+                       "receiver_message_id) VALUES (%s, %s, %s, %s)",
+                       (message.chat.id, message.message_id, sent.chat.id, sent.message_id))
 
 @bot.message_handler(content_types=['photo', 'video'])
 @nonfalling_handler

@@ -70,3 +70,9 @@ def end_conversation(tg_client_id: int) -> Union[Tuple[int, int], None]:
         cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
 
         return ans
+
+
+def get_operator_id(tg_client_id: int) -> int:
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT operator_id FROM conversations WHERE client_id=%s", (tg_client_id,))
+        return cursor.fetchone()[0]
