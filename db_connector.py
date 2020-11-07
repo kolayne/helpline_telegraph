@@ -14,4 +14,5 @@ def PrettyCursor() -> cursor_type:
         yield cursor
     finally:
         cursor.close()
+        conn.commit()
         conn.close()
