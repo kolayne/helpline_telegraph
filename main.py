@@ -22,7 +22,7 @@ def nonfalling_handler(func: Callable):
     def ans(message: telebot.types.Message, *args, **kwargs):
         try:
             func(message, *args, **kwargs)
-        except:
+        except Exception:
             try:
                 s = "Произошла ошибка"
                 try:

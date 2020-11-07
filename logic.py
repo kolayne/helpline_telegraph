@@ -15,7 +15,8 @@ def is_operator(tg_id: int) -> bool:
         return cursor.fetchone()[0]
 
 def in_conversation_as(tg_client_id: int) -> Union[str, None]:
-    """Check if the user is in a conversation as a client, as an operator, or not in a conversation
+    """
+    Check if the user is in a conversation as a client, as an operator, or not in a conversation
 
     :param tg_client_id: Telegram id of the user to search for
     :return: `'operator'` if chatting as an operator, `'client'` if chatting as a client, `None` if not in a
@@ -31,7 +32,8 @@ def in_conversation_as(tg_client_id: int) -> Union[str, None]:
 
 
 def start_conversation(tg_client_id: int) -> Tuple[int, int]:
-    """Start conversation with an operator
+    """
+    Start conversation with an operator
 
     :param tg_client_id: Telegram id of the user starting a conversation
     :return: If the given user is in a conversation already, `(-1, -1)` is returned. If the given user is not a client,
@@ -54,8 +56,11 @@ def start_conversation(tg_client_id: int) -> Tuple[int, int]:
             return tg_operator_id, local_client_id
 
 def end_conversation(tg_client_id: int) -> Union[Tuple[int, int], None]:
-    """Stop conversation with an operator
-    Note that this function can only be called with a client id. Operator is unable to end a conversation at the moment
+    """
+    Stop conversation with an operator
+
+    Note that this function can only be called with a client id. Operator is unable to end a conversation in current
+    implementation.
 
     :param tg_client_id: Telegram id of the client ending the conversation
     :return: If there is no conversation with the given user as a client, `None` is returned. Otherwise a tuple of two
