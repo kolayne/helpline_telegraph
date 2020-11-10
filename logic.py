@@ -9,13 +9,6 @@ def add_user(tg_id: int) -> None:
         cursor.execute("INSERT INTO users(tg_id) VALUES (%s) ON CONFLICT DO NOTHING", (tg_id,))
 
 
-"""  # Not removing this part yet, because it might be useful later
-def is_operator(tg_id: int) -> bool:
-    with PrettyCursor() as cursor:
-        cursor.execute("SELECT is_operator FROM users WHERE tg_id=%s", (tg_id,))
-        return cursor.fetchone()[0]
-"""
-
 def is_operator_and_is_not_crying(tg_id: int) -> bool:
     with PrettyCursor() as cursor:
         cursor.execute("SELECT user_is_operator(%s) AND NOT operator_is_crying(%s)", (tg_id, tg_id))
