@@ -125,9 +125,11 @@ def text_message_handler(message: telebot.types.Message):
         break
 
     with PrettyCursor() as cursor:
-        cursor.execute("INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, "
-                       "receiver_message_id) VALUES (%s, %s, %s, %s)",
-                       (message.chat.id, message.message_id, sent.chat.id, sent.message_id))
+        query = "INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, " \
+                "receiver_message_id) VALUES (%s, %s, %s, %s)"
+        cursor.execute(query, (message.chat.id, message.message_id, sent.chat.id, sent.message_id))
+        cursor.execute(query, (sent.chat.id, sent.message_id, message.chat.id, message.message_id))
+
 
 @bot.message_handler(content_types=AnyContentType())
 @nonfalling_handler
