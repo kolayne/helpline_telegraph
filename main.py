@@ -6,7 +6,7 @@ import telebot
 from typing import Callable
 
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, is_operator_and_is_not_crying, in_conversation_as,\
+from logic import add_user, start_conversation, end_conversation, is_operator_and_is_not_crying, in_conversation_as, \
     get_operator_id
 from config import bot_token
 
@@ -113,6 +113,16 @@ def text_message_handler(message: telebot.types.Message):
         sent = bot.send_message(get_operator_id(message.chat.id), message.text)
     else:
         raise NotImplementedError("Unknown `user_in_conversation_type`")
+
+    for entity in message.entities or []:
+        if entity.type == 'mention':
+            continue
+        if entity.type == 'url' and message.text[entity.offset: entity.offset + entity.length] == entity.url:
+            continue
+
+        bot.reply_to(message, "Это сообщение содержит форматирование, которое сейчас не поддерживается. Оно было "
+                              "отправлено с потерей форматирования. Мы работаем над этим")
+        break
 
     with PrettyCursor() as cursor:
         cursor.execute("INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, "
