@@ -44,12 +44,12 @@ AS
 
 
 ALTER TABLE conversations
-    ADD CONSTRAINT client_is_not_an_operating_operator CHECK ( NOT user_is_operator(client_id) OR
-                                                               NOT operator_is_operating(client_id) );
+    ADD CONSTRAINT client_is_not_operating CHECK ( NOT user_is_operator(client_id) OR
+                                                   NOT operator_is_operating(client_id) );
 
 ALTER TABLE conversations
     ADD CONSTRAINT operator_is_not_crying CHECK ( NOT user_is_operator(client_id) OR
                                                   NOT operator_is_crying(operator_id) );
 
 ALTER TABLE conversations
-    ADD CONSTRAINT operator_is_not_client CHECK ( client_id <> operator_id );
+    ADD CONSTRAINT client_and_operator_are_different CHECK ( client_id <> operator_id );
