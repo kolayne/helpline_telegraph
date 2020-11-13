@@ -85,44 +85,29 @@ def end_conversation_handler(message: telebot.types.Message):
     else:
         bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
 
-# TODO: rewrite in a simpler way, because operators now only have one or none clients
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
     (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
-    user_in_conversation_type = None
-    if client_tg == message.chat.id:
-        user_in_conversation_type = 'client'
-    elif operator_tg == message.chat.id:
-        user_in_conversation_type = 'operator'
 
-    if user_in_conversation_type is None:
-        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation")
+    if client_tg is None:
+        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation. Сейчас у вас "
+                              "собеседника")
         return
 
-    if user_in_conversation_type == 'operator':
-        if message.reply_to_message is None:
-            bot.reply_to(message, "Операторы должен отвечать на сообщения. Нельзя написать сообщение просто так")
-            return
+    interlocutor_id = client_tg if message.chat.id != client_tg else operator_tg
 
+    reply_to = None
+    if message.reply_to_message is not None:
         with PrettyCursor() as cursor:
-            cursor.execute("SELECT sender_chat_id, sender_message_id FROM reflected_messages WHERE receiver_chat_id=%s "
-                           "AND receiver_message_id=%s",
-                           (message.reply_to_message.chat.id, message.reply_to_message.message_id))
+            cursor.execute("SELECT sender_message_id FROM reflected_messages WHERE sender_chat_id=%s AND "
+                           "receiver_chat_id=%s AND receiver_message_id=%s",
+                           (interlocutor_id, message.chat.id, message.reply_to_message.message_id))
             try:
-                chat_id, message_id = cursor.fetchone()
+                reply_to, = cursor.fetchone()
             except TypeError:
-                bot.reply_to(message, "Не похоже, что сообщение, на которое вы ответили, пришло от вашего собеседника")
+                bot.reply_to(message, "Эта беседа уже завершилась. Вы не можете ответить на это сообщение")
                 return
-
-        sent = bot.send_message(chat_id, message.text, reply_to_message_id=message_id)
-    elif user_in_conversation_type == 'client':
-        if message.reply_to_message is not None:
-            pass
-
-        sent = bot.send_message(operator_tg, message.text)
-    else:
-        raise NotImplementedError("Unknown `user_in_conversation_type`")
 
     for entity in message.entities or []:
         if entity.type == 'mention':
@@ -130,9 +115,11 @@ def text_message_handler(message: telebot.types.Message):
         if entity.type == 'url' and message.text[entity.offset: entity.offset + entity.length] == entity.url:
             continue
 
-        bot.reply_to(message, "Это сообщение содержит форматирование, которое сейчас не поддерживается. Оно было "
+        bot.reply_to(message, "Это сообщение содержит форматирование, которое сейчас не поддерживается. Оно будет "
                               "отправлено с потерей форматирования. Мы работаем над этим")
         break
+
+    sent = bot.send_message(interlocutor_id, message.text, reply_to_message_id=reply_to)
 
     with PrettyCursor() as cursor:
         query = "INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, " \
