@@ -6,8 +6,7 @@ import telebot
 from typing import Callable
 
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, is_operator_and_is_not_crying, in_conversation_as, \
-    get_operator_id
+from logic import add_user, start_conversation, end_conversation, is_operator_and_is_not_crying, get_conversing
 from config import bot_token
 
 
@@ -54,18 +53,21 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['start_conversation'])
 @nonfalling_handler
 def start_conversation_handler(message: telebot.types.Message):
-    operator_id, local_user_id = start_conversation(message.chat.id)
-    if operator_id == -1:
+    start_conversation(message.chat.id)
+    (_, client_local), (operator_tg, _) = get_conversing(message.chat.id)
+
+    # TODO: fix messages
+    if operator_tg == -1:
         bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
-    elif operator_id == -2:
+    elif operator_tg == -2:
         bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne для "
                               "реализации такой возможности")
-    elif operator_id == -3:
+    elif operator_tg == -3:
         bot.reply_to(message, "Сейчас нет доступных операторов :(\nПопробуйте позже")
     else:
         bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
                               "Используйте /end_conversation чтобы прекратить")
-        bot.send_message(operator_id, f"Пользователь №{local_user_id} начал беседу с вами")
+        bot.send_message(operator_tg, f"Пользователь №{client_local} начал беседу с вами")
 
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
@@ -87,7 +89,12 @@ def end_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
-    user_in_conversation_type = in_conversation_as(message.chat.id)
+    (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
+    user_in_conversation_type = None
+    if client_tg == message.chat.id:
+        user_in_conversation_type = 'client'
+    elif operator_tg == message.chat.id:
+        user_in_conversation_type = 'operator'
 
     if user_in_conversation_type is None:
         bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation")
@@ -113,7 +120,7 @@ def text_message_handler(message: telebot.types.Message):
         if message.reply_to_message is not None:
             pass
 
-        sent = bot.send_message(get_operator_id(message.chat.id), message.text)
+        sent = bot.send_message(operator_tg, message.text)
     else:
         raise NotImplementedError("Unknown `user_in_conversation_type`")
 
