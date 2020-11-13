@@ -60,6 +60,8 @@ def start_conversation_handler(message: telebot.types.Message):
     elif operator_id == -2:
         bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne для "
                               "реализации такой возможности")
+    elif operator_id == -3:
+        bot.reply_to(message, "Сейчас нет доступных операторов :(\nПопробуйте позже")
     else:
         bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
                               "Используйте /end_conversation чтобы прекратить")
@@ -81,6 +83,7 @@ def end_conversation_handler(message: telebot.types.Message):
     else:
         bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
 
+# TODO: rewrite in a simpler way, because operators now only have one or none clients
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):

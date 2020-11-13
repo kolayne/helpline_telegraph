@@ -12,7 +12,7 @@ CREATE TABLE users
 CREATE TABLE conversations
 (
     client_id   integer NOT NULL UNIQUE REFERENCES users,
-    operator_id integer NOT NULL REFERENCES users
+    operator_id integer NOT NULL UNIQUE REFERENCES users
 );
 
 CREATE TABLE reflected_messages
