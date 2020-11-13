@@ -31,10 +31,10 @@ def in_conversation_as(tg_client_id: int) -> Union[str, None]:
         conversation
     """
     with PrettyCursor() as cursor:
-        cursor.execute("SELECT EXISTS(SELECT 1 FROM conversations WHERE operator_id=%s)", (tg_client_id,))
+        cursor.execute("SELECT exists(SELECT 1 FROM conversations WHERE operator_id=%s)", (tg_client_id,))
         if cursor.fetchone()[0]:
             return 'operator'
-        cursor.execute("SELECT EXISTS(SELECT 1 FROM conversations WHERE client_id=%s)", (tg_client_id,))
+        cursor.execute("SELECT exists(SELECT 1 FROM conversations WHERE client_id=%s)", (tg_client_id,))
         if cursor.fetchone()[0]:
             return 'client'
 
@@ -53,7 +53,7 @@ def start_conversation(tg_client_id: int) -> Tuple[int, int]:
         try:
             cursor.execute("INSERT INTO conversations(client_id, operator_id) SELECT %s, tg_id FROM users WHERE "
                            "user_is_operator(tg_id) AND %s != tg_id AND "
-                           "NOT EXISTS(SELECT 1 FROM conversations WHERE client_id=tg_id OR operator_id=tg_id) "
+                           "NOT exists(SELECT 1 FROM conversations WHERE client_id=tg_id OR operator_id=tg_id) "
                            "ORDER BY random() LIMIT 1",
                            (tg_client_id, tg_client_id))
         except psycopg2.errors.UniqueViolation:

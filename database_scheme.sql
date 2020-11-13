@@ -31,13 +31,13 @@ AS
 
 CREATE FUNCTION operator_is_operating(integer) RETURNS boolean
 AS
-'SELECT EXISTS(SELECT 1
+'SELECT exists(SELECT 1
                FROM conversations
                WHERE operator_id = $1)' LANGUAGE SQL VOLATILE;
 
 CREATE FUNCTION operator_is_crying(integer) RETURNS boolean
 AS
-'SELECT EXISTS(SELECT 1
+'SELECT exists(SELECT 1
                FROM conversations
                WHERE client_id = $1)'
     LANGUAGE SQL VOLATILE;
