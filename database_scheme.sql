@@ -27,7 +27,7 @@ CREATE TABLE reflected_messages
 CREATE FUNCTION user_is_operator(integer) RETURNS boolean
 AS
 'SELECT is_operator
- FROM users' LANGUAGE SQL VOLATILE;
+ FROM users WHERE tg_id=$1' LANGUAGE SQL VOLATILE;
 
 CREATE FUNCTION operator_is_operating(integer) RETURNS boolean
 AS
@@ -48,8 +48,8 @@ ALTER TABLE conversations
                                                    NOT operator_is_operating(client_id) );
 
 ALTER TABLE conversations
-    ADD CONSTRAINT operator_is_not_crying CHECK ( NOT user_is_operator(client_id) OR
-                                                  NOT operator_is_crying(operator_id) );
+    ADD CONSTRAINT operator_is_operator_and_is_not_crying CHECK ( user_is_operator(operator_id) AND
+                                                                  NOT operator_is_crying(operator_id) );
 
 ALTER TABLE conversations
     ADD CONSTRAINT client_and_operator_are_different CHECK ( client_id <> operator_id );
