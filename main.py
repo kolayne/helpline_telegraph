@@ -77,18 +77,17 @@ def start_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
-    if is_operator_and_is_not_crying(message.chat.id):
+    (_, client_local), (operator_tg, _) = get_conversing(message.chat.id)
+
+    if operator_tg == -1:
+        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
+    elif operator_tg == message.chat.id:
         bot.reply_to(message, "Оператор не может прекратить беседу. Обратитесь к @kolayne для реализации такой "
                               "возможности")
-        return
-
-    ans = end_conversation(message.chat.id)
-    if ans:
-        operator_id, local_user_id = ans
-        bot.reply_to(message, "Беседа с оператором прекратилась")
-        bot.send_message(operator_id, f"Пользователь №{local_user_id} прекратил беседу")
     else:
-        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
+        end_conversation(message.chat.id)
+        bot.reply_to(message, "Беседа с оператором прекратилась")
+        bot.send_message(operator_tg, f"Пользователь №{client_local} прекратил беседу")
 
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
