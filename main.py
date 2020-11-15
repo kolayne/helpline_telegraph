@@ -53,21 +53,26 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['start_conversation'])
 @nonfalling_handler
 def start_conversation_handler(message: telebot.types.Message):
-    start_conversation(message.chat.id)
+    err = start_conversation(message.chat.id)
+    if err:
+        if err == 1:
+            bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
+        elif err == 2:
+            bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne "
+                                  "для реализации такой возможности")
+        elif err == 3:
+            bot.reply_to(message, "Сейчас нет доступных операторов :(\nПопробуйте позже")
+        else:
+            raise NotImplementedError("Unknown error code returned by `start_conversation`")
+
+        return
+
+    # TODO: make `start_conversation` return the result of `get_conversing` to reduce number of calls to it
     (_, client_local), (operator_tg, _) = get_conversing(message.chat.id)
 
-    # TODO: fix messages
-    if operator_tg == -1:
-        bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
-    elif operator_tg == -2:
-        bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne для "
-                              "реализации такой возможности")
-    elif operator_tg == -3:
-        bot.reply_to(message, "Сейчас нет доступных операторов :(\nПопробуйте позже")
-    else:
-        bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
-                              "Используйте /end_conversation чтобы прекратить")
-        bot.send_message(operator_tg, f"Пользователь №{client_local} начал беседу с вами")
+    bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
+                          "Используйте /end_conversation чтобы прекратить")
+    bot.send_message(operator_tg, f"Пользователь №{client_local} начал беседу с вами")
 
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
