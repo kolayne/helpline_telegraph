@@ -26,7 +26,7 @@ CREATE TABLE reflected_messages
 
 CREATE FUNCTION user_is_operator(integer) RETURNS boolean
 AS
-'SELECT NOT is_operator
+'SELECT is_operator
  FROM users' LANGUAGE SQL VOLATILE;
 
 CREATE FUNCTION operator_is_operating(integer) RETURNS boolean
