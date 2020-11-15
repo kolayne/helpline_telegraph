@@ -35,19 +35,20 @@ def get_conversing(tg_id: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
         return (a, b), (c, d)
 
 
-def start_conversation(tg_client_id: int) -> int:
+def start_conversation(tg_client_id: int) -> Tuple[int, Optional[Tuple[Tuple[int, int], Tuple[int, int]]]]:
     """
     Start conversation with an operator
 
     :param tg_client_id: Telegram id of the user starting a conversation
-    :return: `0` on success, `1` if the client is already crying (in conversation as a client), `2` if the client is
-        operating, `3` if there are no operators available
+    :return: `(0, get_conversing(tg_client_id))` on success, `(1, None)` if the client is already crying
+        (in conversation as a client), `(2, None)` if the client is operating, `(3, None)` if there are no operators
+        available
     """
     # Must check for this separately, because if the given client is chatting with an operator and no operators are
     # available, the rest of the code is going to return an incorrect code (`0` instead of `1`) even though the database
     # will stay correct
     if get_conversing(tg_client_id)[0][0] == tg_client_id:
-        return 1
+        return 1, None
 
     with PrettyCursor() as cursor:
         try:
@@ -57,17 +58,18 @@ def start_conversation(tg_client_id: int) -> int:
                            "ORDER BY random() LIMIT 1",
                            (tg_client_id, tg_client_id))
         except psycopg2.errors.UniqueViolation:
-            return 1  # Client is in conversation already
+            return 1, None  # Client is in conversation already
         except psycopg2.errors.CheckViolation as e:
             if 'client_is_not_operating' in e.pgerror:
-                return 2  # The client is operating
+                return 2, None  # The client is operating
 
-            return -1  # Unexpected check violation
+            return -1, None  # Unexpected check violation
 
-    if get_conversing(tg_client_id)[0][0] == -1:
-        return 3  # No operators available
+    conversing = get_conversing(tg_client_id)
+    if conversing[0][0] == -1:
+        return 3, None  # No operators available
 
-    return 0
+    return 0, conversing
 
 def end_conversation(tg_client_id: int) -> None:
     """

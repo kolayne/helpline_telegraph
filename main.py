@@ -53,7 +53,7 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['start_conversation'])
 @nonfalling_handler
 def start_conversation_handler(message: telebot.types.Message):
-    err = start_conversation(message.chat.id)
+    err, conversing = start_conversation(message.chat.id)
     if err:
         if err == 1:
             bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
@@ -67,8 +67,7 @@ def start_conversation_handler(message: telebot.types.Message):
 
         return
 
-    # TODO: make `start_conversation` return the result of `get_conversing` to reduce number of calls to it
-    (_, client_local), (operator_tg, _) = get_conversing(message.chat.id)
+    (_, client_local), (operator_tg, _) = conversing
 
     bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
                           "Используйте /end_conversation чтобы прекратить")
