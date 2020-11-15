@@ -9,12 +9,6 @@ def add_user(tg_id: int) -> None:
         cursor.execute("INSERT INTO users(tg_id) VALUES (%s) ON CONFLICT DO NOTHING", (tg_id,))
 
 
-def is_operator_and_is_not_crying(tg_id: int) -> bool:
-    with PrettyCursor() as cursor:
-        cursor.execute("SELECT user_is_operator(%s) AND NOT operator_is_crying(%s)", (tg_id, tg_id))
-        return cursor.fetchone()[0]
-
-
 def get_conversing(tg_id: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
     """
     Get client and operator from a conversation with the given identifier

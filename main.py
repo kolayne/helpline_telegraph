@@ -6,7 +6,7 @@ import telebot
 from typing import Callable
 
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, is_operator_and_is_not_crying, get_conversing
+from logic import add_user, start_conversation, end_conversation, get_conversing
 from config import bot_token
 
 
