@@ -6,8 +6,7 @@ import telebot
 from typing import Callable
 
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, is_operator_and_is_not_crying, in_conversation_as, \
-    get_operator_id
+from logic import add_user, start_conversation, end_conversation, get_conversing
 from config import bot_token
 
 
@@ -54,65 +53,64 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['start_conversation'])
 @nonfalling_handler
 def start_conversation_handler(message: telebot.types.Message):
-    operator_id, local_user_id = start_conversation(message.chat.id)
-    if operator_id == -1:
-        bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
-    elif operator_id == -2:
-        bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne для "
-                              "реализации такой возможности")
-    else:
-        bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
-                              "Используйте /end_conversation чтобы прекратить")
-        bot.send_message(operator_id, f"Пользователь №{local_user_id} начал беседу с вами")
+    err, conversing = start_conversation(message.chat.id)
+    if err:
+        if err == 1:
+            bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
+        elif err == 2:
+            bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne "
+                                  "для реализации такой возможности")
+        elif err == 3:
+            bot.reply_to(message, "Сейчас нет доступных операторов :(\nПопробуйте позже")
+        else:
+            raise NotImplementedError("Unknown error code returned by `start_conversation`")
+
+        return
+
+    (_, client_local), (operator_tg, _) = conversing
+
+    bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
+                          "Используйте /end_conversation чтобы прекратить")
+    bot.send_message(operator_tg, f"Пользователь №{client_local} начал беседу с вами")
 
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
-    if is_operator_and_is_not_crying(message.chat.id):
+    (_, client_local), (operator_tg, _) = get_conversing(message.chat.id)
+
+    if operator_tg == -1:
+        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
+    elif operator_tg == message.chat.id:
         bot.reply_to(message, "Оператор не может прекратить беседу. Обратитесь к @kolayne для реализации такой "
                               "возможности")
-        return
-
-    ans = end_conversation(message.chat.id)
-    if ans:
-        operator_id, local_user_id = ans
-        bot.reply_to(message, "Беседа с оператором прекратилась")
-        bot.send_message(operator_id, f"Пользователь №{local_user_id} прекратил беседу")
     else:
-        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
+        end_conversation(message.chat.id)
+        bot.reply_to(message, "Беседа с оператором прекратилась")
+        bot.send_message(operator_tg, f"Пользователь №{client_local} прекратил беседу")
 
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
-    user_in_conversation_type = in_conversation_as(message.chat.id)
+    (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
 
-    if user_in_conversation_type is None:
-        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation")
+    if client_tg is None:
+        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation. Сейчас у вас "
+                              "нет собеседника")
         return
 
-    if user_in_conversation_type == 'operator':
-        if message.reply_to_message is None:
-            bot.reply_to(message, "Операторы должен отвечать на сообщения. Нельзя написать сообщение просто так")
-            return
+    interlocutor_id = client_tg if message.chat.id != client_tg else operator_tg
 
+    reply_to = None
+    if message.reply_to_message is not None:
         with PrettyCursor() as cursor:
-            cursor.execute("SELECT sender_chat_id, sender_message_id FROM reflected_messages WHERE receiver_chat_id=%s "
-                           "AND receiver_message_id=%s",
-                           (message.reply_to_message.chat.id, message.reply_to_message.message_id))
+            cursor.execute("SELECT sender_message_id FROM reflected_messages WHERE sender_chat_id=%s AND "
+                           "receiver_chat_id=%s AND receiver_message_id=%s",
+                           (interlocutor_id, message.chat.id, message.reply_to_message.message_id))
             try:
-                chat_id, message_id = cursor.fetchone()
+                reply_to, = cursor.fetchone()
             except TypeError:
-                bot.reply_to(message, "Не похоже, что сообщение, на которое вы ответили, пришло от вашего собеседника")
+                bot.reply_to(message, "Эта беседа уже завершилась. Вы не можете ответить на это сообщение")
                 return
-
-        sent = bot.send_message(chat_id, message.text, reply_to_message_id=message_id)
-    elif user_in_conversation_type == 'client':
-        if message.reply_to_message is not None:
-            pass
-
-        sent = bot.send_message(get_operator_id(message.chat.id), message.text)
-    else:
-        raise NotImplementedError("Unknown `user_in_conversation_type`")
 
     for entity in message.entities or []:
         if entity.type == 'mention':
@@ -120,9 +118,11 @@ def text_message_handler(message: telebot.types.Message):
         if entity.type == 'url' and message.text[entity.offset: entity.offset + entity.length] == entity.url:
             continue
 
-        bot.reply_to(message, "Это сообщение содержит форматирование, которое сейчас не поддерживается. Оно было "
+        bot.reply_to(message, "Это сообщение содержит форматирование, которое сейчас не поддерживается. Оно будет "
                               "отправлено с потерей форматирования. Мы работаем над этим")
         break
+
+    sent = bot.send_message(interlocutor_id, message.text, reply_to_message_id=reply_to)
 
     with PrettyCursor() as cursor:
         query = "INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, " \
