@@ -95,7 +95,7 @@ def text_message_handler(message: telebot.types.Message):
 
     if client_tg is None:
         bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation. Сейчас у вас "
-                              "собеседника")
+                              "нет собеседника")
         return
 
     interlocutor_id = client_tg if message.chat.id != client_tg else operator_tg
