@@ -122,7 +122,7 @@ def end_conversation_handler(message: telebot.types.Message):
 def text_message_handler(message: telebot.types.Message):
     (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
 
-    if client_tg is None:
+    if client_tg == -1:
         bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation. Сейчас у вас "
                               "нет собеседника")
         return
