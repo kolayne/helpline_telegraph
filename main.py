@@ -59,18 +59,13 @@ def nonfalling_handler(func: Callable):
         except Exception:
             try:
                 s = "Произошла ошибка"
-                try:
-                    bot.send_message(405017295, '```' + format_exc() + '```', parse_mode="Markdown")
-                except:
-                    s += ". Свяжитесь с @kolayne для исправления"
+                if notify_admins(text=('```' + format_exc() + '```'), parse_mode="Markdown"):
+                    s += ". Наши администраторы получили уведомление о ней"
                 else:
-                    s += ". @kolayne получил уведомление о ней"
-                try:
-                    s += ". Технические детали:\n```" + format_exc() + "```"
-                    print(format_exc(), file=stderr)
-                except:
-                    pass
+                    s += ". Свяжитесь с администрацией бота для исправления"
+                s += ". Технические детали:\n```" + format_exc() + "```"
 
+                print(format_exc(), file=stderr)
                 bot.send_message(message.chat.id, s, parse_mode="Markdown")
             except:
                 print(format_exc(), file=stderr)
