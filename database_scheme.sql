@@ -6,7 +6,8 @@ CREATE TABLE users
 (
     tg_id       integer NOT NULL PRIMARY KEY,
     local_id    serial UNIQUE,
-    is_operator BOOLEAN NOT NULL DEFAULT FALSE
+    is_operator BOOLEAN NOT NULL DEFAULT FALSE,
+    is_admin    BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE conversations
