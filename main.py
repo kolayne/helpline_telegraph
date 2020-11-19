@@ -47,8 +47,8 @@ def notify_admins(**kwargs) -> bool:
     except Exception:
         print("Something went wrong while **iterating** throw `admins` inside of `notify_admins`:", file=stderr)
         print(format_exc(), file=stderr)
-    finally:
-        return sent
+
+    return sent
 
 
 def nonfalling_handler(func: Callable):
