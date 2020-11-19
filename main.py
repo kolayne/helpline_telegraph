@@ -6,7 +6,7 @@ import telebot
 from typing import Callable
 
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, get_conversing
+from logic import add_user, start_conversation, end_conversation, get_conversing, get_admins_ids
 from config import bot_token
 
 
@@ -15,6 +15,40 @@ class AnyContentType:
 
 
 bot = telebot.TeleBot(bot_token)
+
+
+def notify_admins(**kwargs) -> bool:
+    """
+    Send a text message to all the bot administrators. Any exceptions occurring inside are suppressed
+
+    ::param kwargs: Keyword arguments to be forwarded to `bot.send_message` (shouldn't contain `chat_id`)
+    :return: `True` if a message was successfully delivered to at least one admin (i. e. no exception occurred), `False`
+        otherwise
+    """
+    try:
+        admins = get_admins_ids()
+    except Exception:
+        print("Couldn't get admins ids inside of `notify_admins`:", file=stderr)
+        print(format_exc(), file=stderr)
+        return False
+
+    sent = False
+
+    try:
+        for i in admins:
+            try:
+                bot.send_message(chat_id=i, **kwargs)
+            except Exception:
+                print("Couldn't send a message to an admin inside of `notify_admins`:", file=stderr)
+                print(format_exc(), file=stderr)
+            else:
+                sent = True
+
+    except Exception:
+        print("Something went wrong while **iterating** throw `admins` inside of `notify_admins`:", file=stderr)
+        print(format_exc(), file=stderr)
+    finally:
+        return sent
 
 
 def nonfalling_handler(func: Callable):

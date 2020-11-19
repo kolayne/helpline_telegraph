@@ -1,5 +1,5 @@
 import psycopg2.errors
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 from db_connector import PrettyCursor
 
@@ -82,3 +82,9 @@ def end_conversation(tg_client_id: int) -> None:
     """
     with PrettyCursor() as cursor:
         cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
+
+
+def get_admins_ids() -> List[int]:
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT tg_id FROM users WHERE is_admin")
+        return [i[0] for i in cursor.fetchall()]
