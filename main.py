@@ -54,10 +54,6 @@ def dt_from_local_epoch_secs(secs):
     return local_epoch + timedelta(seconds=secs)
 
 
-class AnyContentType:
-    def __contains__(self, item): return True
-
-
 bot = telebot.TeleBot(bot_token)
 
 
@@ -119,6 +115,10 @@ def nonfalling_handler(func: Callable):
                 print(format_exc(), file=stderr)
 
     return ans
+
+
+class AnyContentType:
+    def __contains__(self, item): return True
 
 
 @bot.message_handler(commands=['start', 'help'])
