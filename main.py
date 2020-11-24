@@ -1,3 +1,5 @@
+import json
+from datetime import datetime, timedelta
 from functools import wraps
 from sys import stderr
 from traceback import format_exc
@@ -8,6 +10,48 @@ from typing import Callable
 from db_connector import PrettyCursor
 from logic import add_user, start_conversation, end_conversation, get_conversing, get_admins_ids
 from config import bot_token
+
+
+# Callback data dict keys are converted to UPPERCASE abbreviations; values are converted to lowercase
+callback_data_contractions = {'type': 'T', 'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
+                              'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w'}
+
+
+def contract_callback_data(d, converter=None):
+    if converter is None:
+        converter = callback_data_contractions
+
+    e = {}
+    for key, value_ in d.items():
+        try:
+            value = converter.get(value_, value_)
+        except TypeError:
+            value = value_
+
+        e[converter.get(key, key)] = value
+    return e
+
+def contract_callback_data_and_jdump(d, converter=None):
+    return json.dumps(contract_callback_data(d, converter), separators=(',', ':'))
+
+def decontract_callback_data(d, converter=None):
+    if converter is None:
+        # Use inverted `callback_data_contractions` by default
+        converter = {v: k for k, v in callback_data_contractions.items()}
+    return contract_callback_data(d, converter)
+
+def jload_and_decontract_callback_data(d, converter=None):
+    return decontract_callback_data(json.loads(d), converter)
+
+
+# Used to reduce number of digits in the `total_seconds` sent as a callback
+local_epoch = datetime(2020, 11, 1)
+
+def secs_since_local_epoch(dt):
+    return int((dt - local_epoch).total_seconds())
+
+def dt_from_local_epoch_secs(secs):
+    return local_epoch + timedelta(seconds=secs)
 
 
 class AnyContentType:
@@ -58,6 +102,10 @@ def nonfalling_handler(func: Callable):
             func(message, *args, **kwargs)
         except Exception:
             try:
+                # For callback query handlers (we got a `telebot.types.CallbackQuery` object instead of a message)
+                if hasattr(message, 'message'):
+                    message = message.message
+
                 s = "Произошла ошибка"
                 if notify_admins(text=('```' + format_exc() + '```'), parse_mode="Markdown"):
                     s += ". Наши администраторы получили уведомление о ней"
@@ -105,7 +153,7 @@ def start_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
-    (_, client_local), (operator_tg, _) = get_conversing(message.chat.id)
+    (_, client_local), (operator_tg, operator_local) = get_conversing(message.chat.id)
 
     if operator_tg == -1:
         bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
@@ -113,8 +161,24 @@ def end_conversation_handler(message: telebot.types.Message):
         bot.reply_to(message, "Оператор не может прекратить беседу. Обратитесь к @kolayne для реализации такой "
                               "возможности")
     else:
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        d = {'type': 'conversation_rate', 'operator_ids': [operator_tg, operator_local],
+             'conversation_end_moment': secs_since_local_epoch(datetime.now())}
+
+        keyboard.add(
+            telebot.types.InlineKeyboardButton("Лучше",
+                                               callback_data=contract_callback_data_and_jdump({**d, 'mood': 'better'})),
+            telebot.types.InlineKeyboardButton("Так же",
+                                               callback_data=contract_callback_data_and_jdump({**d, 'mood': 'same'})),
+            telebot.types.InlineKeyboardButton("Хуже",
+                                               callback_data=contract_callback_data_and_jdump({**d, 'mood': 'worse'}))
+        )
+        keyboard.add(telebot.types.InlineKeyboardButton("Не хочу оценивать",
+                                                        callback_data=contract_callback_data_and_jdump(d)))
+
         end_conversation(message.chat.id)
-        bot.reply_to(message, "Беседа с оператором прекратилась")
+        bot.reply_to(message, "Беседа с оператором прекратилась. Хотите оценить свое самочувствие после нее? "
+                              "Вы остаетесь анонимным", reply_markup=keyboard)
         bot.send_message(operator_tg, f"Пользователь №{client_local} прекратил беседу")
 
 @bot.message_handler(content_types=['text'])
@@ -164,6 +228,34 @@ def text_message_handler(message: telebot.types.Message):
 @nonfalling_handler
 def another_content_type_handler(message: telebot.types.Message):
     bot.reply_to(message, "Сообщения этого типа не поддерживаются. Свяжитесь с @kolayne, чтобы добавить поддержку")
+
+
+@bot.callback_query_handler(func=lambda call: True)
+@nonfalling_handler
+def callback_query(call: telebot.types.CallbackQuery):
+    try:
+        d = decontract_callback_data(json.loads(call.data))
+        if d.get('type') != 'conversation_rate':
+            raise json.JSONDecodeError
+    except json.JSONDecodeError:
+        bot.answer_callback_query(call.id, "Это действие не поддерживается")
+        return
+
+    mood = d.get('mood')
+    if mood == 'worse':
+        operator_tg, operator_local = d['operator_ids']
+        conversation_end = dt_from_local_epoch_secs(d['conversation_end_moment'])
+        notification_text = "Клиент чувствует себя хуже после беседы с оператором {}, которая завершилась в {}".format(
+            f"[{operator_local}](tg://user?id={operator_tg})", conversation_end
+        )
+        notify_admins(text=notification_text, parse_mode="Markdown")
+
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+
+    if mood is None:
+        bot.answer_callback_query(call.id, "Благодарим за участие")
+    else:
+        bot.answer_callback_query(call.id, "Спасибо за вашу оценку")
 
 
 if __name__ == "__main__":
