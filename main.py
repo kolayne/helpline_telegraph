@@ -36,10 +36,11 @@ def contract_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]
     for key, value_ in d.items():
         try:
             value = converter.get(value_, value_)
-        except TypeError:
+        except TypeError:  # If `value_` is not hashable, so it can't be a key of `converter`
             value = value_
 
         e[converter.get(key, key)] = value
+
     return e
 
 def contract_callback_data_and_jdump(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] = None) -> str:
@@ -60,7 +61,7 @@ def decontract_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, An
 
     :param d: Callback data to be decontracted
     :param converter: (default `None`) Dictionary with replacements to be forwarded to `contract_callback_data`. If
-        `None`, <b>reversed</b> `callback_data_contractions` is used
+        `None`, the <b>reversed</b> `callback_data_contractions` is used
     :return: `d` dictionary with keys and values decontracted with `converter`
     """
     if converter is None:
@@ -289,7 +290,7 @@ def callback_query(call: telebot.types.CallbackQuery):
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
 
     if mood is None:
-        bot.answer_callback_query(call.id, "Благодарим за участие")
+        bot.answer_callback_query(call.id)
     else:
         bot.answer_callback_query(call.id, "Спасибо за вашу оценку")
 
