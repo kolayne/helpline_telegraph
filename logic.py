@@ -1,5 +1,6 @@
 import psycopg2.errors
 from typing import Tuple, Optional, List
+from threading import Lock
 
 from db_connector import PrettyCursor
 
@@ -88,3 +89,46 @@ def get_admins_ids() -> List[int]:
     with PrettyCursor() as cursor:
         cursor.execute("SELECT tg_id FROM users WHERE is_admin")
         return [i[0] for i in cursor.fetchall()]
+
+
+# Whenever a client wants to have a conversation all the operators get a message which invites him to the conversation
+# with the client. Whenever an operator accepts the invitation, all the invitations messages for other operators are
+# deleted.
+# `operators_invitations_messages` is used for storing sent invitations messages for being able to delete them later. It
+# is a dictionary from telegram client id to a list of tuples of telegram operator chat id and telegram id of a message,
+# which invites the operator to join a conversation with the client (simpler `{client_id: [(operator_id, message_id)]}`)
+operators_invitations_messages = {}
+# `clients_expecting_operators` is a set of telegram ids of clients waiting for an operator to start chatting with
+clients_expecting_operators = set()
+# `conversation_starter_lock` is a lock which must be acquired when working with `operators_invitations_messages` and/or
+# `clients_expecting_operators`
+conversation_starter_lock = Lock()
+
+
+def invite_operators(tg_client_id: int) -> bool:
+    # TODO: add docs
+
+    raise NotImplementedError("This function is just a scratch, not the real code (yet)")
+
+    with conversation_starter_lock:
+        first_len = len(clients_expecting_operators)
+        clients_expecting_operators.add(tg_client_id)
+        # If no new element was added, which means this client has requested a conversation start already
+        if first_len == len(clients_expecting_operators):
+            return False
+
+    msg_ids = []
+    for tg_operator_id in "list of all free operators":
+        try:
+            msg_ids.append((
+                tg_operator_id,
+                bot.send_message(tg_operator_id, "Hey, come join us by clicking the button or something")
+            ))
+        except Exception:  # TODO only catch telegram api exceptions
+            pass  # TODO: log
+
+    with conversation_starter_lock:
+        operators_invitations_messages[tg_operator_id] = \
+            operators_invitations_messages.get(tg_operator_id, []) + msg_ids
+
+    return True
