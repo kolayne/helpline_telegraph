@@ -300,5 +300,15 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
         bot.answer_callback_query(call.id, "Спасибо за вашу оценку")
 
 
+@bot.callback_query_handler(func=lambda call: jload_and_decontract_callback_data(call.data)['type'] ==
+                                              'conversation_acceptation')
+@nonfalling_handler
+def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
+    raise NotImplementedError("This function uses another function which is not implemented (yet)")
+
+    d = jload_and_decontract_callback_data(call.data)
+    start_conversation(d['client_id'], call.message.chat.id)
+
+
 if __name__ == "__main__":
     bot.polling(none_stop=False)
