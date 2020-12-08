@@ -7,6 +7,7 @@ from traceback import format_exc
 import telebot
 from typing import Callable, Dict, Any, Optional
 
+from common import does_raise
 from db_connector import PrettyCursor
 from logic import add_user, start_conversation, end_conversation, get_conversing, get_admins_ids
 from config import bot_token
@@ -267,16 +268,20 @@ def another_content_type_handler(message: telebot.types.Message):
     bot.reply_to(message, "Сообщения этого типа не поддерживаются. Свяжитесь с @kolayne, чтобы добавить поддержку")
 
 
-@bot.callback_query_handler(func=lambda call: True)
+# Invalid callback query handler
+@bot.callback_query_handler(func=lambda call: does_raise(json.loads, args=(call.data,), expected=json.JSONDecodeError,
+                                                         reraise_other=False) or
+                                              'type' not in jload_and_decontract_callback_data(call.data).keys())
 @nonfalling_handler
-def callback_query(call: telebot.types.CallbackQuery):
-    try:
-        d = decontract_callback_data(json.loads(call.data))
-        if d.get('type') != 'conversation_rate':
-            raise json.JSONDecodeError
-    except json.JSONDecodeError:
-        bot.answer_callback_query(call.id, "Это действие не поддерживается")
-        return
+def invalid_callback_query(call: telebot.types.CallbackQuery):
+    bot.answer_callback_query(call.id, "Действие не поддерживается или некорректные данные обратного вызова")
+
+
+@bot.callback_query_handler(func=lambda call: jload_and_decontract_callback_data(call.data)['type'] ==
+                                              'conversation_rate')
+@nonfalling_handler
+def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
+    d = jload_and_decontract_callback_data(call.data)
 
     mood = d.get('mood')
     if mood == 'worse':
