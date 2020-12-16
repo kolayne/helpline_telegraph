@@ -175,7 +175,7 @@ def start_conversation_handler(message: telebot.types.Message):
     elif tg_client_id == message.chat.id:
         bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
     else:
-        result = invite_operators(message.chat.id)
+        result = invite_operators(message.chat.id, bot)
         if result == 0:
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...")
         elif result == 1:
@@ -304,7 +304,7 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
-    if start_conversation(d['client_id'], call.message.chat.id):
+    if start_conversation(d['client_id'], call.message.chat.id, bot):
         (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, "Начался диалог с клиентом. Отправьте сообщение, и собеседник его "

@@ -1,6 +1,8 @@
 import psycopg2.errors
-from typing import Tuple, Optional, List
+from typing import Tuple, List
 from threading import Lock
+
+import telebot
 
 from db_connector import PrettyCursor
 
@@ -63,14 +65,12 @@ def get_admins_ids() -> List[int]:
 # is a dictionary from telegram client id to a list of tuples of telegram operator chat id and telegram id of a message,
 # which invites the operator to join a conversation with the client (simpler `{client_id: [(operator_id, message_id)]}`)
 operators_invitations_messages = {}
-# `clients_expecting_operators` is a set of telegram ids of clients waiting for an operator to start chatting with
-clients_expecting_operators = set()
 # `conversation_starter_lock` is a lock which must be acquired when working with `operators_invitations_messages` and/or
 # `clients_expecting_operators`
 conversation_starter_lock = Lock()
 
 
-def invite_operators(tg_client_id: int) -> int:
+def invite_operators(tg_client_id: int, bot: telebot.TeleBot) -> int:
     # TODO: add docs
 
     raise NotImplementedError("This function is just a scratch, not the real code (yet)")
@@ -78,13 +78,8 @@ def invite_operators(tg_client_id: int) -> int:
     if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
         return False
 
-    with conversation_starter_lock:
-        first_len = len(clients_expecting_operators)
-        clients_expecting_operators.add(tg_client_id)
-
-        # If no new element was added, which means this client has requested an operator is awaited already
-        if first_len == len(clients_expecting_operators):
-            return 1
+    if tg_client_id in operators_invitations_messages.keys():
+        return 1
 
     free_operators = "list of all free operators"  # TODO
     if not free_operators:
@@ -101,18 +96,29 @@ def invite_operators(tg_client_id: int) -> int:
             pass  # TODO: log
 
     with conversation_starter_lock:
-        operators_invitations_messages[tg_operator_id] = \
-            operators_invitations_messages.get(tg_operator_id, []) + msg_ids
+        # It is possible that some messages to operators were sent before reaching this line but after calling the
+        # function, so we don't want to loose the messages sent earlier
+        operators_invitations_messages[tg_client_id] = \
+            operators_invitations_messages.get(tg_client_id, []) + msg_ids
 
     return 0
 
 
-def start_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
+def clear_invitation_messages(tg_client_id: int, bot: telebot.TeleBot) -> None:
+    with conversation_starter_lock:
+        if tg_client_id in operators_invitations_messages.keys():
+            for (operator_id, message_id) in operators_invitations_messages[tg_client_id]:
+                bot.delete_message(operator_id, message_id)
+            del operators_invitations_messages[tg_client_id]
+
+
+def start_conversation(tg_client_id: int, tg_operator_id: int, bot: telebot.TeleBot) -> bool:
     """
     Start conversation with an operator
 
     :param tg_client_id: Telegram id of the client to start conversation with
     :param tg_operator_id: Telegram id of the operator to start conversation with
+    :param bot: `TeleBot` object, used to communicate with users
     :return: `True` if the conversation was started successfully, `False` if an `IntegrityError` exception was raised.
         `False` could also be returned under some other circumstances when it's impossible to start the conversation
         (i. e. some of the users are in conversations already, etc) even if there where no exception from `psycopg`
@@ -123,6 +129,9 @@ def start_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
     if get_conversing(tg_client_id)[0][0] == tg_client_id:
         return False
 
+    if tg_operator_id in operators_invitations_messages.keys():
+        return False
+
     with PrettyCursor() as cursor:
         try:
             cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (?, ?)",
@@ -130,4 +139,8 @@ def start_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
         except psycopg2.errors.IntegrityError:
             return False
         else:
+            clear_invitation_messages(tg_client_id, bot)
             return True
+
+
+# TODO: no functions from this file must use `TeleBot` object or anything from `telebot`. It's the main's work
