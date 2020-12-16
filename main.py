@@ -304,7 +304,14 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
-    start_conversation(d['client_id'], call.message.chat.id)
+    if start_conversation(d['client_id'], call.message.chat.id):
+        (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, "Начался диалог с клиентом. Отправьте сообщение, и собеседник его "
+                                               "увидит")
+        bot.send_message(d['client_id'], "Начался диалог с оператором. Отправьте сообщение, и собеседник его увидит")
+    else:
+        bot.answer_callback_query(call.id, "Что-то пошло не так. Возможно, вы ожидаете оператора?")
 
 
 if __name__ == "__main__":
