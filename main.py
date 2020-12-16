@@ -9,7 +9,7 @@ from typing import Callable, Dict, Any, Optional
 
 from common import does_raise
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, get_conversing, get_admins_ids
+from logic import add_user, start_conversation, end_conversation, get_conversing, get_admins_ids, invite_operators
 from config import bot_token
 
 
@@ -149,7 +149,7 @@ def nonfalling_handler(func: Callable):
 
                 print(format_exc(), file=stderr)
                 bot.send_message(message.chat.id, s, parse_mode="Markdown")
-            except:
+            except Exception:
                 print(format_exc(), file=stderr)
 
     return ans
@@ -168,25 +168,24 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['start_conversation'])
 @nonfalling_handler
 def start_conversation_handler(message: telebot.types.Message):
-    err, conversing = start_conversation(message.chat.id)
-    if err:
-        if err == 1:
-            bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
-        elif err == 2:
-            bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne "
-                                  "для реализации такой возможности")
-        elif err == 3:
-            bot.reply_to(message, "Сейчас нет доступных операторов :(\nПопробуйте позже")
+    (tg_client_id, _), (tg_operator_id, _) = get_conversing(message.chat.id)
+    if tg_operator_id == message.chat.id:
+        bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne "
+                              "для реализации такой возможности")
+    elif tg_client_id == message.chat.id:
+        bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
+    else:
+        result = invite_operators(message.chat.id)
+        if result == 0:
+            bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...")
+        elif result == 1:
+            bot.reply_to(message, "Вы уже ожидаете присоединения оператора. Используйте /end_conversation, чтобы "
+                                  "отказаться от беседы")
+        elif result == 2:
+            bot.reply_to(message, "Сейчас нет свободных операторов. Пожалуйста, попробуйте позже")
         else:
-            raise NotImplementedError("Unknown error code returned by `start_conversation`")
+            raise NotImplementedError("`invite_operators` returned an unexpected value")
 
-        return
-
-    (_, client_local), (operator_tg, _) = conversing
-
-    bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
-                          "Используйте /end_conversation чтобы прекратить")
-    bot.send_message(operator_tg, f"Пользователь №{client_local} начал беседу с вами")
 
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
@@ -304,8 +303,6 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
                                               'conversation_acceptation')
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
-    raise NotImplementedError("This function uses another function which is not implemented (yet)")
-
     d = jload_and_decontract_callback_data(call.data)
     start_conversation(d['client_id'], call.message.chat.id)
 

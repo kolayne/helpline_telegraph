@@ -36,42 +36,6 @@ def get_conversing(tg_id: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
         return (a, b), (c, d)
 
 
-def start_conversation(tg_client_id: int) -> Tuple[int, Optional[Tuple[Tuple[int, int], Tuple[int, int]]]]:
-    """
-    Start conversation with an operator
-
-    :param tg_client_id: Telegram id of the user starting a conversation
-    :return: `(0, get_conversing(tg_client_id))` on success, `(1, None)` if the client is already crying
-        (in conversation as a client), `(2, None)` if the client is operating, `(3, None)` if there are no operators
-        available
-    """
-    # Must check for this separately, because if the given client is chatting with an operator and no operators are
-    # available, the rest of the code is going to return an incorrect code (`0` instead of `1`) even though the database
-    # will stay correct
-    if get_conversing(tg_client_id)[0][0] == tg_client_id:
-        return 1, None
-
-    with PrettyCursor() as cursor:
-        try:
-            cursor.execute("INSERT INTO conversations(client_id, operator_id) SELECT %s, tg_id FROM users WHERE "
-                           "user_is_operator(tg_id) AND %s != tg_id AND "
-                           "NOT exists(SELECT 1 FROM conversations WHERE client_id=tg_id OR operator_id=tg_id) "
-                           "ORDER BY random() LIMIT 1",
-                           (tg_client_id, tg_client_id))
-        except psycopg2.errors.UniqueViolation:
-            return 1, None  # Client is in conversation already
-        except psycopg2.errors.CheckViolation as e:
-            if 'client_is_not_operating' in e.pgerror:
-                return 2, None  # The client is operating
-
-            return -1, None  # Unexpected check violation
-
-    conversing = get_conversing(tg_client_id)
-    if conversing[0][0] == -1:
-        return 3, None  # No operators available
-
-    return 0, conversing
-
 def end_conversation(tg_client_id: int) -> None:
     """
     End the conversation between the client and an operator if there is any
@@ -83,6 +47,7 @@ def end_conversation(tg_client_id: int) -> None:
     """
     with PrettyCursor() as cursor:
         cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
+        # TODO: remove user from conversation expecters
 
 
 def get_admins_ids() -> List[int]:
@@ -105,20 +70,28 @@ clients_expecting_operators = set()
 conversation_starter_lock = Lock()
 
 
-def invite_operators(tg_client_id: int) -> bool:
+def invite_operators(tg_client_id: int) -> int:
     # TODO: add docs
 
     raise NotImplementedError("This function is just a scratch, not the real code (yet)")
 
+    if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
+        return False
+
     with conversation_starter_lock:
         first_len = len(clients_expecting_operators)
         clients_expecting_operators.add(tg_client_id)
-        # If no new element was added, which means this client has requested a conversation start already
+
+        # If no new element was added, which means this client has requested an operator is awaited already
         if first_len == len(clients_expecting_operators):
-            return False
+            return 1
+
+    free_operators = "list of all free operators"  # TODO
+    if not free_operators:
+        return 2
 
     msg_ids = []
-    for tg_operator_id in "list of all free operators":
+    for tg_operator_id in free_operators:
         try:
             msg_ids.append((
                 tg_operator_id,
@@ -131,4 +104,30 @@ def invite_operators(tg_client_id: int) -> bool:
         operators_invitations_messages[tg_operator_id] = \
             operators_invitations_messages.get(tg_operator_id, []) + msg_ids
 
-    return True
+    return 0
+
+
+def start_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
+    """
+    Start conversation with an operator
+
+    :param tg_client_id: Telegram id of the client to start conversation with
+    :param tg_operator_id: Telegram id of the operator to start conversation with
+    :return: `True` if the conversation was started successfully, `False` if an `IntegrityError` exception was raised.
+        `False` could also be returned under some other circumstances when it's impossible to start the conversation
+        (i. e. some of the users are in conversations already, etc) even if there where no exception from `psycopg`
+    """
+    # Must check for this separately, because if the given client is chatting with an operator and no operators are
+    # available, the rest of the code is going to return an incorrect code (`0` instead of `1`) even though the database
+    # will stay correct
+    if get_conversing(tg_client_id)[0][0] == tg_client_id:
+        return False
+
+    with PrettyCursor() as cursor:
+        try:
+            cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (?, ?)",
+                           (tg_client_id, tg_operator_id))
+        except psycopg2.errors.IntegrityError:
+            return False
+        else:
+            return True
