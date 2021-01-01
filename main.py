@@ -10,7 +10,7 @@ from typing import Callable, Dict, Any, Optional
 
 from common import does_raise
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, get_conversing, get_admins_ids
+from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids
 from config import bot_token
 
 
@@ -217,12 +217,12 @@ class AnyContentType:
 @bot.message_handler(commands=['start', 'help'])
 @nonfalling_handler
 def start_help_handler(message: telebot.types.Message):
-    bot.reply_to(message, "Привет. /start_conversation, чтобы начать беседу, /end_conversation чтобы завершить")
+    bot.reply_to(message, "Привет. /request_conversation, чтобы начать беседу, /end_conversation чтобы завершить")
     add_user(message.chat.id)
 
-@bot.message_handler(commands=['start_conversation'])
+@bot.message_handler(commands=['request_conversation'])
 @nonfalling_handler
-def start_conversation_handler(message: telebot.types.Message):
+def request_conversation_handler(message: telebot.types.Message):
     (tg_client_id, _), (tg_operator_id, _) = get_conversing(message.chat.id)
     if tg_operator_id == message.chat.id:
         bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne "
@@ -248,7 +248,7 @@ def end_conversation_handler(message: telebot.types.Message):
     (_, client_local), (operator_tg, operator_local) = get_conversing(message.chat.id)
 
     if operator_tg == -1:
-        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
+        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation чтобы начать")
         # TODO: remove user from conversation expecters
     elif operator_tg == message.chat.id:
         bot.reply_to(message, "Оператор не может прекратить беседу. Обратитесь к @kolayne для реализации такой "
@@ -280,7 +280,7 @@ def text_message_handler(message: telebot.types.Message):
     (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
 
     if client_tg == -1:
-        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation. Сейчас у вас "
+        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /request_conversation. Сейчас у вас "
                               "нет собеседника")
         return
 
@@ -360,7 +360,7 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
-    if start_conversation(d['client_id'], call.message.chat.id):
+    if begin_conversation(d['client_id'], call.message.chat.id):
         clear_invitation_messages(d['client_id'])
 
         (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)

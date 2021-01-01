@@ -54,15 +54,15 @@ def get_admins_ids() -> List[int]:
         return [i[0] for i in cursor.fetchall()]
 
 
-def start_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
+def begin_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
     """
-    Start conversation with an operator
+    Begins a conversation between a client and an operator
 
     :param tg_client_id: Telegram id of the client to start conversation with
     :param tg_operator_id: Telegram id of the operator to start conversation with
-    :return: `True` if the conversation was started successfully, `False` if an `IntegrityError` exception was raised.
-        `False` could also be returned under some other circumstances when it's impossible to start the conversation
-        (i. e. some of the users are in conversations already, etc) even if there where no exception from `psycopg`
+    :return: `True` if the conversation was started successfully, `False` otherwise (for example, if either the client
+        or the operator is busy). Formally, `False` is returned if the `psycopg2.errors.IntegrityError` exception was
+        raised, `True` if there were no exceptions
     """
     with PrettyCursor() as cursor:
         try:
