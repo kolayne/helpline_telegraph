@@ -9,6 +9,17 @@ def add_user(tg_id: int) -> None:
         cursor.execute("INSERT INTO users(tg_id) VALUES (%s) ON CONFLICT DO NOTHING", (tg_id,))
 
 
+def get_free_operators() -> List[int]:
+    """
+    Retrieves telegram ids of operators who are currently not in any conversation
+    :return: `list` of telegram ids of free operators
+    """
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT tg_id FROM users WHERE is_operator AND NOT "
+                       "(operator_is_crying(tg_id) OR operator_is_operating(tg_id))")
+        return [i[0] for i in cursor.fetchall()]
+
+
 def get_conversing(tg_id: int) -> Union[Tuple[Tuple[int, int], Tuple[int, int]],
                                         Tuple[Tuple[None, None], Tuple[None, None]]]:
     """

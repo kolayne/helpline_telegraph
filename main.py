@@ -10,7 +10,7 @@ from typing import Callable, Dict, Any, Optional
 
 from common import does_raise
 from db_connector import PrettyCursor
-from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids
+from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids, get_free_operators
 from config import bot_token
 
 
@@ -114,12 +114,12 @@ def invite_operators(tg_client_id: int) -> int:
     raise NotImplementedError("This function is just a scratch, not the real code (yet)")
 
     if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
-        return False
+        return 3
 
     if tg_client_id in operators_invitations_messages.keys():
         return 1
 
-    free_operators = "list of all free operators"  # TODO
+    free_operators = get_free_operators()
     if not free_operators:
         return 2
 
@@ -130,8 +130,9 @@ def invite_operators(tg_client_id: int) -> int:
                 tg_operator_id,
                 bot.send_message(tg_operator_id, "Hey, come join us by clicking the button or something")
             ))
-        except Exception:  # TODO only catch telegram api exceptions
-            pass  # TODO: log
+        except telebot.apihelper.ApiException:
+            print("Telegram API Exception while sending out operators invitations:", file=stderr)
+            print(format_exc(), file=stderr)
 
     with conversation_starter_lock:
         # It is possible that some messages to operators were sent before reaching this line but after calling the
@@ -238,6 +239,8 @@ def request_conversation_handler(message: telebot.types.Message):
                                   "отказаться от беседы")
         elif result == 2:
             bot.reply_to(message, "Сейчас нет свободных операторов. Пожалуйста, попробуйте позже")
+        elif result == 3:
+            bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation, чтобы выйти из нее")
         else:
             raise NotImplementedError("`invite_operators` returned an unexpected value")
 
