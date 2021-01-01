@@ -247,7 +247,7 @@ def request_conversation_handler(message: telebot.types.Message):
 def end_conversation_handler(message: telebot.types.Message):
     (_, client_local), (operator_tg, operator_local) = get_conversing(message.chat.id)
 
-    if operator_tg == -1:
+    if operator_tg is None:
         bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation чтобы начать")
         # TODO: remove user from conversation expecters
     elif operator_tg == message.chat.id:
@@ -279,7 +279,7 @@ def end_conversation_handler(message: telebot.types.Message):
 def text_message_handler(message: telebot.types.Message):
     (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
 
-    if client_tg == -1:
+    if client_tg is None:
         bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /request_conversation. Сейчас у вас "
                               "нет собеседника")
         return

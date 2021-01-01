@@ -1,5 +1,5 @@
 import psycopg2.errors
-from typing import Tuple, List
+from typing import Tuple, List, Union
 
 from db_connector import PrettyCursor
 
@@ -9,7 +9,8 @@ def add_user(tg_id: int) -> None:
         cursor.execute("INSERT INTO users(tg_id) VALUES (%s) ON CONFLICT DO NOTHING", (tg_id,))
 
 
-def get_conversing(tg_id: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+def get_conversing(tg_id: int) -> Union[Tuple[Tuple[int, int], Tuple[int, int]],
+                                        Tuple[Tuple[None, None], Tuple[None, None]]]:
     """
     Get client and operator from a conversation with the given identifier
 
@@ -31,7 +32,7 @@ def get_conversing(tg_id: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
         try:
             a, b, c, d = cursor.fetchone()
         except TypeError:
-            return (-1, -1), (-1, -1)
+            return (None, None), (None, None)
         return (a, b), (c, d)
 
 
