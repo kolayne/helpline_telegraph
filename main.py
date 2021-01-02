@@ -133,6 +133,8 @@ def invite_operators(tg_client_id: int) -> int:
 
     msg_ids = []
     for tg_operator_id in free_operators:
+        if tg_operator_id == tg_client_id:
+            continue
         try:
             msg_ids.append((
                 tg_operator_id,
@@ -248,7 +250,7 @@ def request_conversation_handler(message: telebot.types.Message):
         result = invite_operators(message.chat.id)
         if result == 0:
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
-                                  "/end_conversation, чтобы отменить запрос, если передумаете")
+                                  "/end_conversation, чтобы отменить запрос")
         elif result == 1:
             bot.reply_to(message, "Вы уже ожидаете присоединения оператора. Используйте /end_conversation, чтобы "
                                   "отказаться от беседы")
