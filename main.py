@@ -377,10 +377,10 @@ def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
 
         (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)
         bot.answer_callback_query(call.id)
-        # TODO: tell the conversing local ids of each other
-        bot.send_message(call.message.chat.id, "Начался диалог с клиентом. Отправьте сообщение, и собеседник его "
-                                               "увидит")
-        bot.send_message(d['client_id'], "Начался диалог с оператором. Отправьте сообщение, и собеседник его увидит")
+        bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте сообщение, и "
+                                               "собеседник его увидит")
+        bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, и "
+                                         "собеседник его увидит")
     else:
         bot.answer_callback_query(call.id, "Что-то пошло не так. Возможно, вы ожидаете оператора?")
 
