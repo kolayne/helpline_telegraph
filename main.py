@@ -152,12 +152,17 @@ def invite_operators(tg_client_id: int) -> int:
     return 0
 
 
-def clear_invitation_messages(tg_client_id: int) -> None:
+def clear_invitation_messages(tg_client_id: int) -> bool:
+    # TODO: add docs
     with conversation_starter_lock:
         if tg_client_id in operators_invitations_messages.keys():
             for (operator_id, message_id) in operators_invitations_messages[tg_client_id]:
                 bot.delete_message(operator_id, message_id)
             del operators_invitations_messages[tg_client_id]
+
+            return True
+        else:
+            return False
 
 
 def notify_admins(**kwargs) -> bool:
@@ -242,7 +247,8 @@ def request_conversation_handler(message: telebot.types.Message):
     else:
         result = invite_operators(message.chat.id)
         if result == 0:
-            bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...")
+            bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
+                                  "/end_conversation, чтобы отменить запрос, если передумаете")
         elif result == 1:
             bot.reply_to(message, "Вы уже ожидаете присоединения оператора. Используйте /end_conversation, чтобы "
                                   "отказаться от беседы")
@@ -260,8 +266,12 @@ def end_conversation_handler(message: telebot.types.Message):
     (_, client_local), (operator_tg, operator_local) = get_conversing(message.chat.id)
 
     if operator_tg is None:
-        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation чтобы начать")
-        # TODO: remove user from conversation expecters
+        if clear_invitation_messages(message.chat.id):
+            bot.reply_to(message, "Ожидание операторов отменено. Используйте /request_conversation, чтобы запросить "
+                                  "помощь снова")
+        else:
+            bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation, чтобы "
+                                  "начать")
     elif operator_tg == message.chat.id:
         bot.reply_to(message, "Оператор не может прекратить беседу. Обратитесь к @kolayne для реализации такой "
                               "возможности")
