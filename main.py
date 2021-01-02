@@ -99,9 +99,10 @@ def datetime_from_local_epoch_secs(secs):
 bot = telebot.TeleBot(bot_token)
 
 
-# Whenever a client wants to have a conversation all the operators get a message which invites him to the conversation
-# with the client. Whenever an operator accepts the invitation, all the invitations messages for other operators are
-# deleted.
+# Whenever a client wants to have a conversation all the free operators get a message which invites him to the
+# conversation with the client. Whenever an operator accepts the invitation, all the invitations messages for other
+# operators are deleted.
+
 # `operators_invitations_messages` is used for storing sent invitations messages for being able to delete them later. It
 # is a dictionary from telegram client id to a list of tuples of telegram operator chat id and telegram id of a message,
 # which invites the operator to join a conversation with the client (simpler `{client_id: [(operator_id, message_id)]}`)
