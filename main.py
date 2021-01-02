@@ -113,8 +113,23 @@ conversation_starter_lock = Lock()
 
 
 def invite_operators(tg_client_id: int) -> int:
-    # TODO: add docs
+    """
+    Sends out invitation messages to all currently free operators, via which they can start a conversation with the
+    client
 
+    Warning: Formally, the function is not guaranteed to always correctly indicate that the user had requested a
+    conversation already because of not complete thread-safety, so it is possible that the invitations to the same chat
+    will be sent twice if the function will be called twice in two different threads for the same client. However, in
+    that case all the invitation messages will work correctly and all of them will be removed whenever an operator
+    accepts an invitation
+
+    TODO: make the function completely thread-safe to avoid the above warning
+
+    :param tg_client_id: Telegram identifier of the user to invite operators to chat with
+    :return: Error code, either of `0`, `1`, `2`, `3`, where `0` indicates that the invitations have been sent
+        successfully, `1` tells the user had requested invitations before, `2` indicates that there are no free
+        operators, `3` means that the client is in a conversation already (either as a client or as an operator)
+    """
     if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
         return 3
 
@@ -257,7 +272,7 @@ def request_conversation_handler(message: telebot.types.Message):
         elif result == 2:
             bot.reply_to(message, "Сейчас нет свободных операторов. Пожалуйста, попробуйте позже")
         elif result == 3:
-            bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation, чтобы выйти из нее")
+            bot.reply_to(message, "Вы уже в беседе. Используйте /end_conversation, чтобы выйти из нее")
         else:
             raise NotImplementedError("`invite_operators` returned an unexpected value")
 
