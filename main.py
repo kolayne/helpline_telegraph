@@ -10,13 +10,16 @@ from typing import Callable, Dict, Any, Optional
 
 from common import does_raise
 from db_connector import PrettyCursor
-from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids, get_free_operators
+from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids, get_free_operators, \
+    get_local
 from config import bot_token
 
 
 # Callback data dict keys are converted to UPPERCASE abbreviations; values are converted to lowercase
-callback_data_contractions = {'type': 'T', 'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
-                              'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w'}
+callback_data_contractions = {'type': 'T',
+                              'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
+                              'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w',
+                              'client_id': 'CID', 'conversation_acceptation': 'ca'}
 
 
 def contract_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] = None) -> Dict[Any, Any]:
@@ -111,8 +114,6 @@ conversation_starter_lock = Lock()
 def invite_operators(tg_client_id: int) -> int:
     # TODO: add docs
 
-    raise NotImplementedError("This function is just a scratch, not the real code (yet)")
-
     if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
         return 3
 
@@ -123,12 +124,19 @@ def invite_operators(tg_client_id: int) -> int:
     if not free_operators:
         return 2
 
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    callback_data = {'type': 'conversation_acceptation', 'client_id': tg_client_id}
+    keyboard.add(telebot.types.InlineKeyboardButton("Присоединиться",
+                                                    callback_data=contract_callback_data_and_jdump(callback_data)))
+    local_client_id = get_local(tg_client_id)
+
     msg_ids = []
     for tg_operator_id in free_operators:
         try:
             msg_ids.append((
                 tg_operator_id,
-                bot.send_message(tg_operator_id, "Hey, come join us by clicking the button or something")
+                bot.send_message(tg_operator_id, f"Пользователь №{local_client_id} хочет побеседовать. Нажмите кнопку "
+                                                 "ниже, чтобы стать его оператором", reply_markup=keyboard).message_id
             ))
         except telebot.apihelper.ApiException:
             print("Telegram API Exception while sending out operators invitations:", file=stderr)
@@ -368,6 +376,7 @@ def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
 
         (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)
         bot.answer_callback_query(call.id)
+        # TODO: tell the conversing local ids of each other
         bot.send_message(call.message.chat.id, "Начался диалог с клиентом. Отправьте сообщение, и собеседник его "
                                                "увидит")
         bot.send_message(d['client_id'], "Начался диалог с оператором. Отправьте сообщение, и собеседник его увидит")

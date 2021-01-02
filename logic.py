@@ -8,6 +8,11 @@ def add_user(tg_id: int) -> None:
     with PrettyCursor() as cursor:
         cursor.execute("INSERT INTO users(tg_id) VALUES (%s) ON CONFLICT DO NOTHING", (tg_id,))
 
+def get_local(tg_id: int) -> int:
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT local_id FROM users WHERE tg_id=%s", (tg_id,))
+        return cursor.fetchone()[0]
+
 
 def get_free_operators() -> List[int]:
     """
@@ -78,7 +83,7 @@ def begin_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
     """
     with PrettyCursor() as cursor:
         try:
-            cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (?, ?)",
+            cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (%s, %s)",
                            (tg_client_id, tg_operator_id))
         except psycopg2.errors.IntegrityError:  # Either this operator or this client is busy
             return False
