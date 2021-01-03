@@ -136,7 +136,7 @@ def invite_operators(tg_client_id: int) -> int:
     if tg_client_id in operators_invitations_messages.keys():
         return 1
 
-    free_operators = get_free_operators()
+    free_operators = set(get_free_operators()) - {tg_client_id}
     if not free_operators:
         return 2
 
@@ -148,8 +148,6 @@ def invite_operators(tg_client_id: int) -> int:
 
     msg_ids = []
     for tg_operator_id in free_operators:
-        if tg_operator_id == tg_client_id:
-            continue
         try:
             msg_ids.append((
                 tg_operator_id,
