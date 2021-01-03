@@ -168,7 +168,13 @@ def invite_operators(tg_client_id: int) -> int:
 
 
 def clear_invitation_messages(tg_client_id: int) -> bool:
-    # TODO: add docs
+    """
+    Remove invitation messages sent to operators for the client
+
+    :param tg_client_id: Telegram identifier of the client to remove invitations to conversation with
+    :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, had now been
+        removed), `False` otherwise
+    """
     with conversation_starter_lock:
         if tg_client_id in operators_invitations_messages.keys():
             for (operator_id, message_id) in operators_invitations_messages[tg_client_id]:
