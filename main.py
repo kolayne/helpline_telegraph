@@ -107,8 +107,7 @@ bot = telebot.TeleBot(bot_token)
 # is a dictionary from telegram client id to a list of tuples of telegram operator chat id and telegram id of a message,
 # which invites the operator to join a conversation with the client (simpler `{client_id: [(operator_id, message_id)]}`)
 operators_invitations_messages = {}
-# `conversation_starter_lock` is a lock which must be acquired when working with `operators_invitations_messages` and/or
-# `clients_expecting_operators`
+# `conversation_request_lock` is a lock which must be acquired when working with `operators_invitations_messages`
 conversation_starter_lock = Lock()
 
 
@@ -117,14 +116,6 @@ def invite_operators(tg_client_id: int) -> int:
     Sends out invitation messages to all currently free operators, via which they can start a conversation with the
     client
 
-    Warning: Formally, the function is not guaranteed to always correctly indicate that the user had requested a
-    conversation already because of not complete thread-safety, so it is possible that the invitations to the same chat
-    will be sent twice if the function will be called twice in two different threads for the same client. However, in
-    that case all the invitation messages will work correctly and all of them will be removed whenever an operator
-    accepts an invitation
-
-    TODO: make the function completely thread-safe to avoid the above warning
-
     :param tg_client_id: Telegram identifier of the user to invite operators to chat with
     :return: Error code, either of `0`, `1`, `2`, `3`, where `0` indicates that the invitations have been sent
         successfully, `1` tells the user had requested invitations before, `2` indicates that there are no free
@@ -132,9 +123,6 @@ def invite_operators(tg_client_id: int) -> int:
     """
     if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
         return 3
-
-    if tg_client_id in operators_invitations_messages.keys():
-        return 1
 
     free_operators = set(get_free_operators()) - {tg_client_id}
     if not free_operators:
@@ -146,23 +134,24 @@ def invite_operators(tg_client_id: int) -> int:
                                                     callback_data=contract_callback_data_and_jdump(callback_data)))
     local_client_id = get_local(tg_client_id)
 
-    msg_ids = []
-    for tg_operator_id in free_operators:
-        try:
-            msg_ids.append((
-                tg_operator_id,
-                bot.send_message(tg_operator_id, f"Пользователь №{local_client_id} хочет побеседовать. Нажмите кнопку "
-                                                 "ниже, чтобы стать его оператором", reply_markup=keyboard).message_id
-            ))
-        except telebot.apihelper.ApiException:
-            print("Telegram API Exception while sending out operators invitations:", file=stderr)
-            print(format_exc(), file=stderr)
-
     with conversation_starter_lock:
-        # It is possible that some messages to operators were sent before reaching this line but after calling the
-        # function, so we don't want to loose the messages sent earlier
-        operators_invitations_messages[tg_client_id] = \
-            operators_invitations_messages.get(tg_client_id, []) + msg_ids
+        if tg_client_id in operators_invitations_messages.keys():
+            return 1
+
+        msg_ids = []
+        for tg_operator_id in free_operators:
+            try:
+                msg_ids.append((
+                    tg_operator_id,
+                    bot.send_message(tg_operator_id, f"Пользователь №{local_client_id} хочет побеседовать. Нажмите "
+                                                     "кнопку ниже, чтобы стать его оператором",
+                                     reply_markup=keyboard).message_id
+                ))
+            except telebot.apihelper.ApiException:
+                print("Telegram API Exception while sending out operators invitations:", file=stderr)
+                print(format_exc(), file=stderr)
+
+        operators_invitations_messages[tg_client_id] = msg_ids
 
     return 0
 
@@ -403,17 +392,25 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
-    if begin_conversation(d['client_id'], call.message.chat.id):
+    with conversation_starter_lock:
+        if call.message.chat.id in operators_invitations_messages.keys():
+            bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
+            return
+
+        conversation_began = begin_conversation(d['client_id'], call.message.chat.id)
+
+    if conversation_began:
         clear_invitation_messages(d['client_id'])
 
         (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)
         bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте сообщение, и "
-                                               "собеседник его увидит")
-        bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, и "
-                                         "собеседник его увидит")
+        bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
+                                               "сообщение, и собеседник его увидит")
+        bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "
+                                         "и собеседник его увидит")
     else:
-        bot.answer_callback_query(call.id, "Что-то пошло не так. Возможно, вы ожидаете оператора?")
+        bot.answer_callback_query(call.id, "Что-то пошло не так. Возможно, вы уже в беседе, или другой оператор принял "
+                                           "это приглашение")
 
 
 if __name__ == "__main__":
