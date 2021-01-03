@@ -171,8 +171,7 @@ def start_help_handler(message: telebot.types.Message):
 def request_conversation_handler(message: telebot.types.Message):
     (tg_client_id, _), (tg_operator_id, _) = get_conversing(message.chat.id)
     if tg_operator_id == message.chat.id:
-        bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne "
-                              "для реализации такой возможности")
+        bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то")
     elif tg_client_id == message.chat.id:
         bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
     else:
