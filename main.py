@@ -41,9 +41,6 @@ def invite_operators(tg_client_id: int) -> int:
         successfully, `1` tells that the user had requested invitations before, `2` indicates that there are no free
         operators, `3` means that the client is in a conversation already (either as a client or as an operator)
     """
-    if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
-        return 3
-
     free_operators = set(get_free_operators()) - {tg_client_id}
     if not free_operators:
         return 2
@@ -57,6 +54,9 @@ def invite_operators(tg_client_id: int) -> int:
     with conversation_starter_lock:
         if tg_client_id in operators_invitations_messages.keys():
             return 1
+
+        if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
+            return 3
 
         msg_ids = []
         for tg_operator_id in free_operators:
