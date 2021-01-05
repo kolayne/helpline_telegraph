@@ -8,7 +8,13 @@ def add_user(tg_id: int) -> None:
     with PrettyCursor() as cursor:
         cursor.execute("INSERT INTO users(tg_id) VALUES (%s) ON CONFLICT DO NOTHING", (tg_id,))
 
-def get_local(tg_id: int) -> int:
+def get_local_id(tg_id: int) -> int:
+    """
+    Retrieves the local id of the user with the known telegram id
+
+    :param tg_id: Telegram identifier of the user
+    :return: Local identifier of the user with the given id
+    """
     with PrettyCursor() as cursor:
         cursor.execute("SELECT local_id FROM users WHERE tg_id=%s", (tg_id,))
         return cursor.fetchone()[0]
@@ -77,15 +83,16 @@ def begin_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
 
     :param tg_client_id: Telegram id of the client to start conversation with
     :param tg_operator_id: Telegram id of the operator to start conversation with
-    :return: `True` if the conversation was started successfully, `False` otherwise (for example, if either the client
-        or the operator is busy). Formally, `False` is returned if the `psycopg2.errors.IntegrityError` exception was
-        raised, `True` if there were no exceptions
+    :return: `True` if the conversation was started successfully, `False` otherwise (<b>for example</b>, if either the
+        client or the operator is busy). Formally, `False` is returned if the `psycopg2.errors.IntegrityError` exception
+        was raised, `True` if there were no exceptions (which means, `False` will be returned if there is
+        <b>anything</b> wrong with the request, e. g. the user with the `tg_operator_id` identifier is not an operator)
     """
     with PrettyCursor() as cursor:
         try:
             cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (%s, %s)",
                            (tg_client_id, tg_operator_id))
-        except psycopg2.errors.IntegrityError:  # Either this operator or this client is busy
+        except psycopg2.errors.IntegrityError:  # Either this operator or this client is busy, or something else is bad
             return False
         else:
             return True

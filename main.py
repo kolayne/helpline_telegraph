@@ -11,7 +11,7 @@ from typing import Callable
 from common import does_raise
 from db_connector import PrettyCursor
 from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids, get_free_operators, \
-    get_local
+    get_local_id
 from config import bot_token
 from callback_helpers import contract_callback_data_and_jdump, jload_and_decontract_callback_data, \
     seconds_since_local_epoch, datetime_from_local_epoch_secs
@@ -20,15 +20,16 @@ from callback_helpers import contract_callback_data_and_jdump, jload_and_decontr
 bot = telebot.TeleBot(bot_token)
 
 
-# Whenever a client wants to have a conversation all the free operators get a message which invites him to the
-# conversation with the client. Whenever an operator accepts the invitation, all the invitations messages for other
-# operators are deleted.
+# Whenever a client requests a conversation, all the <b>free</b> operators get a message which invites them to start
+# chatting with that client. Whenever an operator accepts the invitation, all the messages which invite to the
+# conversation with that client are deleted, and the conversation begins between the client and the operator who
+# accepted the invitation
 
 # `operators_invitations_messages` is used for storing sent invitations messages for being able to delete them later. It
 # is a dictionary from telegram client id to a list of tuples of telegram operator chat id and telegram id of a message,
 # which invites the operator to join a conversation with the client (simpler `{client_id: [(operator_id, message_id)]}`)
 operators_invitations_messages = {}
-# `conversation_request_lock` is a lock which must be acquired when working with `operators_invitations_messages`
+# `conversation_starter_lock` is a lock which must be acquired when working with `operators_invitations_messages`
 conversation_starter_lock = Lock()
 
 
@@ -39,7 +40,7 @@ def invite_operators(tg_client_id: int) -> int:
 
     :param tg_client_id: Telegram identifier of the user to invite operators to chat with
     :return: Error code, either of `0`, `1`, `2`, `3`, where `0` indicates that the invitations have been sent
-        successfully, `1` tells the user had requested invitations before, `2` indicates that there are no free
+        successfully, `1` tells that the user had requested invitations before, `2` indicates that there are no free
         operators, `3` means that the client is in a conversation already (either as a client or as an operator)
     """
     if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
@@ -53,7 +54,7 @@ def invite_operators(tg_client_id: int) -> int:
     callback_data = {'type': 'conversation_acceptation', 'client_id': tg_client_id}
     keyboard.add(telebot.types.InlineKeyboardButton("Присоединиться",
                                                     callback_data=contract_callback_data_and_jdump(callback_data)))
-    local_client_id = get_local(tg_client_id)
+    local_client_id = get_local_id(tg_client_id)
 
     with conversation_starter_lock:
         if tg_client_id in operators_invitations_messages.keys():
@@ -79,7 +80,7 @@ def invite_operators(tg_client_id: int) -> int:
 
 def clear_invitation_messages(tg_client_id: int) -> bool:
     """
-    Remove invitation messages sent to operators for the client
+    Remove messages with invitations to a conversation with the client sent to operators
 
     :param tg_client_id: Telegram identifier of the client to remove invitations to conversation with
     :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, had now been
