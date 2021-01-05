@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from functools import wraps
 from sys import stderr
@@ -8,7 +7,6 @@ from threading import Lock
 import telebot
 from typing import Callable
 
-from common import does_raise
 from db_connector import PrettyCursor
 from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids, get_free_operators, \
     get_local_id
@@ -276,17 +274,21 @@ def another_content_type_handler(message: telebot.types.Message):
     bot.reply_to(message, "Сообщения этого типа не поддерживаются. Свяжитесь с @kolayne, чтобы добавить поддержку")
 
 
+def get_type_from_callback_data(call_data):
+    d = jload_and_decontract_callback_data(call_data)
+    if not isinstance(d, dict):
+        return None
+    return d.get('type')
+
+
 # Invalid callback query handler
-@bot.callback_query_handler(func=lambda call: does_raise(json.loads, args=(call.data,), expected=json.JSONDecodeError,
-                                                         reraise_other=False) or
-                                              'type' not in jload_and_decontract_callback_data(call.data).keys())
+@bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) is None)
 @nonfalling_handler
 def invalid_callback_query(call: telebot.types.CallbackQuery):
     bot.answer_callback_query(call.id, "Действие не поддерживается или некорректные данные обратного вызова")
 
 
-@bot.callback_query_handler(func=lambda call: jload_and_decontract_callback_data(call.data)['type'] ==
-                                              'conversation_rate')
+@bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) == 'conversation_rate')
 @nonfalling_handler
 def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
@@ -308,8 +310,7 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
         bot.answer_callback_query(call.id, "Спасибо за вашу оценку")
 
 
-@bot.callback_query_handler(func=lambda call: jload_and_decontract_callback_data(call.data)['type'] ==
-                                              'conversation_acceptation')
+@bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) == 'conversation_acceptation')
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
