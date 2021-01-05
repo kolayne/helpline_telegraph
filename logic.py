@@ -58,25 +58,6 @@ def get_conversing(tg_id: int) -> Union[Tuple[Tuple[int, int], Tuple[int, int]],
         return (a, b), (c, d)
 
 
-def end_conversation(tg_client_id: int) -> None:
-    """
-    End the conversation between the client and an operator if there is any
-
-    Note that this function can only be called with a client id. Operator is unable to end a conversation in current
-    implementation.
-
-    :param tg_client_id: Telegram id of the client ending the conversation
-    """
-    with PrettyCursor() as cursor:
-        cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
-
-
-def get_admins_ids() -> List[int]:
-    with PrettyCursor() as cursor:
-        cursor.execute("SELECT tg_id FROM users WHERE is_admin")
-        return [i[0] for i in cursor.fetchall()]
-
-
 def begin_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
     """
     Begins a conversation between a client and an operator
@@ -96,3 +77,21 @@ def begin_conversation(tg_client_id: int, tg_operator_id: int) -> bool:
             return False
         else:
             return True
+
+def end_conversation(tg_client_id: int) -> None:
+    """
+    End the conversation between the client and an operator if there is any
+
+    Note that this function can only be called with a client id. Operator is unable to end a conversation in current
+    implementation.
+
+    :param tg_client_id: Telegram id of the client ending the conversation
+    """
+    with PrettyCursor() as cursor:
+        cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
+
+
+def get_admins_ids() -> List[int]:
+    with PrettyCursor() as cursor:
+        cursor.execute("SELECT tg_id FROM users WHERE is_admin")
+        return [i[0] for i in cursor.fetchall()]
