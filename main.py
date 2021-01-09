@@ -150,6 +150,7 @@ def nonfalling_handler(func: Callable):
                 print(format_exc(), file=stderr)
                 bot.send_message(message.chat.id, s, parse_mode="Markdown")
             except Exception:
+                print("An exception while handling an exception:", file=stderr)
                 print(format_exc(), file=stderr)
 
     return ans
