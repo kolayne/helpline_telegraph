@@ -5,8 +5,10 @@ from typing import Dict, Any, Optional
 
 
 # Callback data dict keys are converted to UPPERCASE abbreviations; values are converted to lowercase
-callback_data_contractions = {'type': 'T', 'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
-                              'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w'}
+callback_data_contractions = {'type': 'T',
+                              'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
+                              'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w',
+                              'client_id': 'CID', 'conversation_acceptation': 'ca'}
 
 
 def contract_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] = None) -> Dict[Any, Any]:

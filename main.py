@@ -1,20 +1,98 @@
-import json
 from datetime import datetime
 from functools import wraps
 from sys import stderr
 from traceback import format_exc
+from threading import Lock
 
 import telebot
 from typing import Callable
 
 from db_connector import PrettyCursor
-from logic import add_user, start_conversation, end_conversation, get_conversing, get_admins_ids
+from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids, get_free_operators, \
+    get_local_id
 from config import bot_token
 from callback_helpers import contract_callback_data_and_jdump, jload_and_decontract_callback_data, \
     seconds_since_local_epoch, datetime_from_local_epoch_secs
 
 
 bot = telebot.TeleBot(bot_token)
+
+
+# Whenever a client requests a conversation, all the <b>free</b> operators get a message which invites them to start
+# chatting with that client. Whenever an operator accepts the invitation, all the messages which invite to the
+# conversation with that client are deleted, and the conversation begins between the client and the operator who
+# accepted the invitation
+
+# `operators_invitations_messages` is used for storing sent invitations messages for being able to delete them later. It
+# is a dictionary from telegram client id to a list of tuples of telegram operator chat id and telegram id of a message,
+# which invites the operator to join a conversation with the client (simpler `{client_id: [(operator_id, message_id)]}`)
+operators_invitations_messages = {}
+# `conversation_starter_lock` is a lock which must be acquired when working with `operators_invitations_messages`
+conversation_starter_lock = Lock()
+
+
+def invite_operators(tg_client_id: int) -> int:
+    """
+    Sends out invitation messages to all currently free operators, via which they can start a conversation with the
+    client
+
+    :param tg_client_id: Telegram identifier of the user to invite operators to chat with
+    :return: Error code, either of `0`, `1`, `2`, `3`, where `0` indicates that the invitations have been sent
+        successfully, `1` tells that the user had requested invitations before, `2` indicates that there are no free
+        operators, `3` means that the client is in a conversation already (either as a client or as an operator)
+    """
+    free_operators = set(get_free_operators()) - {tg_client_id}
+    if not free_operators:
+        return 2
+
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    callback_data = {'type': 'conversation_acceptation', 'client_id': tg_client_id}
+    keyboard.add(telebot.types.InlineKeyboardButton("Присоединиться",
+                                                    callback_data=contract_callback_data_and_jdump(callback_data)))
+    local_client_id = get_local_id(tg_client_id)
+
+    with conversation_starter_lock:
+        if tg_client_id in operators_invitations_messages.keys():
+            return 1
+
+        if get_conversing(tg_client_id) != ((None, None), (None, None)):  # In a conversation already
+            return 3
+
+        msg_ids = []
+        for tg_operator_id in free_operators:
+            try:
+                msg_ids.append((
+                    tg_operator_id,
+                    bot.send_message(tg_operator_id, f"Пользователь №{local_client_id} хочет побеседовать. Нажмите "
+                                                     "кнопку ниже, чтобы стать его оператором",
+                                     reply_markup=keyboard).message_id
+                ))
+            except telebot.apihelper.ApiException:
+                print("Telegram API Exception while sending out operators invitations:", file=stderr)
+                print(format_exc(), file=stderr)
+
+        operators_invitations_messages[tg_client_id] = msg_ids
+
+    return 0
+
+
+def clear_invitation_messages(tg_client_id: int) -> bool:
+    """
+    Remove messages with invitations to a conversation with the client sent to operators
+
+    :param tg_client_id: Telegram identifier of the client to remove invitations to conversation with
+    :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, had now been
+        removed), `False` otherwise
+    """
+    with conversation_starter_lock:
+        if tg_client_id in operators_invitations_messages.keys():
+            for (operator_id, message_id) in operators_invitations_messages[tg_client_id]:
+                bot.delete_message(operator_id, message_id)
+            del operators_invitations_messages[tg_client_id]
+
+            return True
+        else:
+            return False
 
 
 def notify_admins(**kwargs) -> bool:
@@ -85,39 +163,45 @@ class AnyContentType:
 @bot.message_handler(commands=['start', 'help'])
 @nonfalling_handler
 def start_help_handler(message: telebot.types.Message):
-    bot.reply_to(message, "Привет. /start_conversation, чтобы начать беседу, /end_conversation чтобы завершить")
+    bot.reply_to(message, "Привет. /request_conversation, чтобы начать беседу, /end_conversation чтобы завершить")
     add_user(message.chat.id)
 
-@bot.message_handler(commands=['start_conversation'])
+@bot.message_handler(commands=['request_conversation'])
 @nonfalling_handler
-def start_conversation_handler(message: telebot.types.Message):
-    err, conversing = start_conversation(message.chat.id)
-    if err:
-        if err == 1:
-            bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
-        elif err == 2:
-            bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то\nОбратитесь к @kolayne "
-                                  "для реализации такой возможности")
-        elif err == 3:
-            bot.reply_to(message, "Сейчас нет доступных операторов :(\nПопробуйте позже")
+def request_conversation_handler(message: telebot.types.Message):
+    (tg_client_id, _), (tg_operator_id, _) = get_conversing(message.chat.id)
+    if tg_operator_id == message.chat.id:
+        bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то")
+    elif tg_client_id == message.chat.id:
+        bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
+    else:
+        result = invite_operators(message.chat.id)
+        if result == 0:
+            bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
+                                  "/end_conversation, чтобы отменить запрос")
+        elif result == 1:
+            bot.reply_to(message, "Вы уже ожидаете присоединения оператора. Используйте /end_conversation, чтобы "
+                                  "отказаться от беседы")
+        elif result == 2:
+            bot.reply_to(message, "Сейчас нет свободных операторов. Пожалуйста, попробуйте позже")
+        elif result == 3:
+            bot.reply_to(message, "Вы уже в беседе. Используйте /end_conversation, чтобы выйти из нее")
         else:
-            raise NotImplementedError("Unknown error code returned by `start_conversation`")
+            raise NotImplementedError("`invite_operators` returned an unexpected value")
 
-        return
-
-    (_, client_local), (operator_tg, _) = conversing
-
-    bot.reply_to(message, "Началась беседа с оператором. Отправьте сообщение, и оператор его увидит. "
-                          "Используйте /end_conversation чтобы прекратить")
-    bot.send_message(operator_tg, f"Пользователь №{client_local} начал беседу с вами")
 
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
     (_, client_local), (operator_tg, operator_local) = get_conversing(message.chat.id)
 
-    if operator_tg == -1:
-        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /start_conversation чтобы начать")
+    if operator_tg is None:
+        if clear_invitation_messages(message.chat.id):
+            bot.reply_to(message, "Ожидание операторов отменено. Используйте /request_conversation, чтобы запросить "
+                                  "помощь снова")
+        else:
+            bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation, чтобы "
+                                  "начать")
     elif operator_tg == message.chat.id:
         bot.reply_to(message, "Оператор не может прекратить беседу. Обратитесь к @kolayne для реализации такой "
                               "возможности")
@@ -147,8 +231,8 @@ def end_conversation_handler(message: telebot.types.Message):
 def text_message_handler(message: telebot.types.Message):
     (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
 
-    if client_tg == -1:
-        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /start_conversation. Сейчас у вас "
+    if client_tg is None:
+        bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /request_conversation. Сейчас у вас "
                               "нет собеседника")
         return
 
@@ -191,16 +275,24 @@ def another_content_type_handler(message: telebot.types.Message):
     bot.reply_to(message, "Сообщения этого типа не поддерживаются. Свяжитесь с @kolayne, чтобы добавить поддержку")
 
 
-@bot.callback_query_handler(func=lambda call: True)
+def get_type_from_callback_data(call_data):
+    d = jload_and_decontract_callback_data(call_data)
+    if not isinstance(d, dict):
+        return None
+    return d.get('type')
+
+
+# Invalid callback query handler
+@bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) is None)
 @nonfalling_handler
-def callback_query(call: telebot.types.CallbackQuery):
-    try:
-        d = jload_and_decontract_callback_data(call.data)
-        if d.get('type') != 'conversation_rate':
-            raise json.JSONDecodeError
-    except json.JSONDecodeError:
-        bot.answer_callback_query(call.id, "Это действие не поддерживается")
-        return
+def invalid_callback_query(call: telebot.types.CallbackQuery):
+    bot.answer_callback_query(call.id, "Действие не поддерживается или некорректные данные обратного вызова")
+
+
+@bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) == 'conversation_rate')
+@nonfalling_handler
+def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
+    d = jload_and_decontract_callback_data(call.data)
 
     mood = d.get('mood')
     if mood == 'worse':
@@ -217,6 +309,31 @@ def callback_query(call: telebot.types.CallbackQuery):
         bot.answer_callback_query(call.id)
     else:
         bot.answer_callback_query(call.id, "Спасибо за вашу оценку")
+
+
+@bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) == 'conversation_acceptation')
+@nonfalling_handler
+def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
+    d = jload_and_decontract_callback_data(call.data)
+    with conversation_starter_lock:
+        if call.message.chat.id in operators_invitations_messages.keys():
+            bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
+            return
+
+        conversation_began = begin_conversation(d['client_id'], call.message.chat.id)
+
+    if conversation_began:
+        clear_invitation_messages(d['client_id'])
+
+        (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
+                                               "сообщение, и собеседник его увидит")
+        bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "
+                                         "и собеседник его увидит")
+    else:
+        bot.answer_callback_query(call.id, "Что-то пошло не так. Возможно, вы уже в беседе, или другой оператор принял "
+                                           "это приглашение")
 
 
 if __name__ == "__main__":
