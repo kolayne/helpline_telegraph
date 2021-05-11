@@ -251,7 +251,7 @@ def text_message_handler(message: telebot.types.Message):
                 return
 
     for entity in message.entities or []:
-        if entity.type == 'mention':
+        if entity.type in ('mention', 'bot_command'):
             continue
         if entity.type == 'url' and message.text[entity.offset: entity.offset + entity.length] == entity.url:
             continue
