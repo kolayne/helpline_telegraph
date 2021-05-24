@@ -41,10 +41,6 @@ def invite_operators(tg_client_id: int) -> int:
         successfully, `1` tells that the user had requested invitations before, `2` indicates that there are no free
         operators, `3` means that the client is in a conversation already (either as a client or as an operator)
     """
-    free_operators = set(get_free_operators()) - {tg_client_id}
-    if not free_operators:
-        return 2
-
     keyboard = telebot.types.InlineKeyboardMarkup()
     callback_data = {'type': 'conversation_acceptation', 'client_id': tg_client_id}
     keyboard.add(telebot.types.InlineKeyboardButton("Присоединиться",
@@ -52,6 +48,10 @@ def invite_operators(tg_client_id: int) -> int:
     local_client_id = get_local_id(tg_client_id)
 
     with conversation_starter_lock:
+        free_operators = set(get_free_operators()) - {tg_client_id}
+        if not free_operators:
+            return 2
+
         if tg_client_id in operators_invitations_messages.keys():
             return 1
 
