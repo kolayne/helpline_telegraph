@@ -136,7 +136,8 @@ def nonfalling_handler(func: Callable):
             func(message, *args, **kwargs)
         except Exception:
             try:
-                # For callback query handlers (we got a `telebot.types.CallbackQuery` object instead of a message)
+                # For callback query handlers
+                # (we got a `telebot.types.CallbackQuery` object instead of a `telebot.types.Message` object)
                 if hasattr(message, 'message'):
                     message = message.message
 
