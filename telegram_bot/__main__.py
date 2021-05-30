@@ -7,11 +7,13 @@ from threading import Lock
 import telebot
 from typing import Callable
 
-from db_connector import PrettyCursor
-from logic import add_user, begin_conversation, end_conversation, get_conversing, get_admins_ids, get_free_operators, \
-    get_local_id
+from core.invitations import operators_invitations_messages, conversation_starter_lock, invite_operators, \
+    clear_invitation_messages
+from core.db_connector import PrettyCursor
+from core.conversations import get_conversing, begin_conversation, end_conversation
+from core.users import add_user, get_local_id, get_free_operators, get_admins_ids
 from config import bot_token
-from callback_helpers import contract_callback_data_and_jdump, jload_and_decontract_callback_data, \
+from .callback_helpers import contract_callback_data_and_jdump, jload_and_decontract_callback_data, \
     seconds_since_local_epoch, datetime_from_local_epoch_secs
 
 
