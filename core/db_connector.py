@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from psycopg2 import connect
 from psycopg2.extensions import cursor as cursor_type
 
-from ..config import db_host, db_name, db_username, db_password
+from .config import db_host, db_name, db_username, db_password
 
 
 @contextmanager

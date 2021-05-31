@@ -6,8 +6,8 @@ import telebot
 
 from .users import get_local_id, get_free_operators
 from .conversations import get_conversing
-from telegram_bot.callback_helpers import contract_callback_data_and_jdump
-from telegram_bot.__main__ import bot  # TODO: remove this terrible shit
+from ..telegram_bot.utils.callback_helpers import contract_callback_data_and_jdump
+from ..telegram_bot._bot import bot  # TODO: remove this terrible shit
 
 
 # Whenever a client requests a conversation, all the <b>free</b> operators get a message which invites them to start
