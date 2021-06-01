@@ -12,8 +12,8 @@ from ..telegram_bot._bot import bot  # TODO: remove this terrible shit
 
 class InvitationsController:
     def __init__(self, users_controller: UsersController, conversations_controller: ConversationsController):
-        self.users_controller = users_controller
-        self.conversations_controller = conversations_controller
+        self.__users_controller = users_controller
+        self.__conversations_controller = conversations_controller
 
         # Whenever a client requests a conversation, all the <b>free</b> operators get a message which invites them to
         # start chatting with that client. Whenever an operator accepts the invitation, all the messages which invite to
@@ -44,10 +44,10 @@ class InvitationsController:
         callback_data = {'type': 'conversation_acceptation', 'client_id': tg_client_id}
         keyboard.add(telebot.types.InlineKeyboardButton("Присоединиться",
                                                         callback_data=contract_callback_data_and_jdump(callback_data)))
-        local_client_id = self.users_controller.get_local_id(tg_client_id)
+        local_client_id = self.__users_controller.get_local_id(tg_client_id)
 
         with self._conversation_starter_lock:
-            free_operators = set(self.users_controller.get_free_operators()) - {tg_client_id}
+            free_operators = set(self.__users_controller.get_free_operators()) - {tg_client_id}
             if not free_operators:
                 return 2
 
@@ -55,7 +55,7 @@ class InvitationsController:
                 return 1
 
             # In a conversation already
-            if self.conversations_controller.get_conversing(tg_client_id) != ((None, None), (None, None)):
+            if self.__conversations_controller.get_conversing(tg_client_id) != ((None, None), (None, None)):
                 return 3
 
             msg_ids = []

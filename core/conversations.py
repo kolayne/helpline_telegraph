@@ -7,7 +7,7 @@ from .db_connector import DatabaseConnectionPool
 
 class ConversationsController:
     def __init__(self, database_connection_pool: DatabaseConnectionPool):
-        self._conn_pool = database_connection_pool
+        self.__conn_pool = database_connection_pool
 
     def get_conversing(self, tg_id: int) -> Union[Tuple[Tuple[int, int], Tuple[int, int]],
                                                   Tuple[Tuple[None, None], Tuple[None, None]]]:
@@ -24,7 +24,7 @@ class ConversationsController:
             operator, and each of them consists of two `int`s, the first of which is the telegram id of a person, the
             second is the local id
         """
-        with self._conn_pool.PrettyCursor() as cursor:
+        with self.__conn_pool.PrettyCursor() as cursor:
             cursor.execute("SELECT client_id,   (SELECT local_id FROM users WHERE tg_id=client_id), "
                            "       operator_id, (SELECT local_id FROM users WHERE tg_id=operator_id) "
                            "FROM conversations WHERE client_id=%s OR operator_id=%s",
@@ -47,7 +47,7 @@ class ConversationsController:
             <b>anything</b> wrong with the request, e. g. the user with the `tg_operator_id` identifier is not an
             operator)
         """
-        with self._conn_pool.PrettyCursor() as cursor:
+        with self.__conn_pool.PrettyCursor() as cursor:
             try:
                 cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (%s, %s)",
                                (tg_client_id, tg_operator_id))
@@ -65,5 +65,5 @@ class ConversationsController:
 
         :param tg_client_id: Telegram id of the client ending the conversation
         """
-        with self._conn_pool.PrettyCursor() as cursor:
+        with self.__conn_pool.PrettyCursor() as cursor:
             cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
