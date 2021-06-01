@@ -1,3 +1,4 @@
+from threading import Lock
 from typing import Union, Tuple
 
 import psycopg2.errors
@@ -6,8 +7,27 @@ from .db_connector import DatabaseConnectionPool
 
 
 class ConversationsController:
+    """
+    # TODO: add the docs of the class itself (#33)
+
+    Attribute `conversations_starter_finisher_lock`: it's guaranteed that while this lock is acquired from outside of
+        the class, no conversations can begin or end. You can use it if you need to do something synchronously with
+        respect to conversations' starts and finishes.
+
+        Note that while the lock is acquired by `begin_conversation` and `end_conversation` (to make the above work),
+        they are design to work perfectly fine even asynchronously. So, if you don't need any synchronization from
+        outside, you may replace `conversations_starter_finisher_lock` with `contextlib.nullcontext` (since Python 3.7),
+        and the controller will start working without synchronization. However, this replacement/patch is
+        **NOT RECOMMENDED**, and you should only perform it if you're sure no one relies on the described behavior
+        (for example, `InvitationsController` **does**, and if you perform the described patch, a race condition will
+        arise)
+    """
+
+    conversations_starter_finisher_lock: Lock
+
     def __init__(self, database_connection_pool: DatabaseConnectionPool):
         self._conn_pool = database_connection_pool
+        self.conversations_starter_finisher_lock = Lock()
 
     def get_conversing(self, tg_id: int) -> Union[Tuple[Tuple[int, int], Tuple[int, int]],
                                                   Tuple[Tuple[None, None], Tuple[None, None]]]:
@@ -39,6 +59,8 @@ class ConversationsController:
         """
         Begins a conversation between a client and an operator
 
+        Note: this function acquires `.conversations_starter_finisher_lock` (see class's docs)
+
         :param tg_client_id: Telegram id of the client to start conversation with
         :param tg_operator_id: Telegram id of the operator to start conversation with
         :return: `True` if the conversation was started successfully, `False` otherwise (<b>for example</b>, if either
@@ -47,7 +69,7 @@ class ConversationsController:
             <b>anything</b> wrong with the request, e. g. the user with the `tg_operator_id` identifier is not an
             operator)
         """
-        with self._conn_pool.PrettyCursor() as cursor:
+        with self.conversations_starter_finisher_lock, self._conn_pool.PrettyCursor() as cursor:
             try:
                 cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (%s, %s)",
                                (tg_client_id, tg_operator_id))
@@ -63,7 +85,9 @@ class ConversationsController:
         Note that this function can only be called with a client id. Operator is unable to end a conversation in current
         implementation.
 
+        Note: this function acquires `.conversations_starter_finisher_lock` (see class's docs)
+
         :param tg_client_id: Telegram id of the client ending the conversation
         """
-        with self._conn_pool.PrettyCursor() as cursor:
+        with self.conversations_starter_finisher_lock, self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))

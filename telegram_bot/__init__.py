@@ -1,4 +1,4 @@
-from ._bot import bot
+from ._init_objects import bot
 # Create `bot` handlers
 from . import message_handlers as _
 from . import callback_handlers as _

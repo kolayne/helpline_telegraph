@@ -1,8 +1,6 @@
 import telebot
 
-from ..core.conversations import begin_conversation, get_conversing
-from ..core.invitations import conversation_starter_lock, operators_invitations_messages, clear_invitation_messages
-from ._bot import bot
+from ._init_objects import core, bot
 from .utils import nonfalling_handler, notify_admins
 from .utils.callback_helpers import jload_and_decontract_callback_data, datetime_from_local_epoch_secs
 
@@ -47,17 +45,17 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
-    with conversation_starter_lock:
-        if call.message.chat.id in operators_invitations_messages.keys():
+    with core.conversations_starter_finisher_lock:
+        if call.message.chat.id in core.operators_invitations_messages.keys():
             bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
             return
 
-        conversation_began = begin_conversation(d['client_id'], call.message.chat.id)
+        conversation_began = core.begin_conversation(d['client_id'], call.message.chat.id)
 
     if conversation_began:
-        clear_invitation_messages(d['client_id'])
+        core.clear_invitation_messages(d['client_id'])
 
-        (_, local_client_id), (_, local_operator_id) = get_conversing(call.message.chat.id)
+        (_, local_client_id), (_, local_operator_id) = core.get_conversing(call.message.chat.id)
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
                                                "сообщение, и собеседник его увидит")

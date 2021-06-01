@@ -2,11 +2,7 @@ from datetime import datetime
 
 import telebot
 
-from ..core.conversations import get_conversing, end_conversation
-from ..core.db_connector import PrettyCursor
-from ..core.invitations import invite_operators, clear_invitation_messages
-from ..core.users import add_user
-from ._bot import bot
+from ._init_objects import core, bot
 from .utils import nonfalling_handler, AnyContentType
 from .utils.callback_helpers import seconds_since_local_epoch, contract_callback_data_and_jdump
 
@@ -15,19 +11,19 @@ from .utils.callback_helpers import seconds_since_local_epoch, contract_callback
 @nonfalling_handler
 def start_help_handler(message: telebot.types.Message):
     bot.reply_to(message, "Привет. /request_conversation, чтобы начать беседу, /end_conversation чтобы завершить")
-    add_user(message.chat.id)
+    core.add_user(message.chat.id)
 
 
 @bot.message_handler(commands=['request_conversation'])
 @nonfalling_handler
 def request_conversation_handler(message: telebot.types.Message):
-    (tg_client_id, _), (tg_operator_id, _) = get_conversing(message.chat.id)
+    (tg_client_id, _), (tg_operator_id, _) = core.get_conversing(message.chat.id)
     if tg_operator_id == message.chat.id:
         bot.reply_to(message, "Операторы не могут запрашивать помощь, пока помогают кому-то")
     elif tg_client_id == message.chat.id:
         bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
     else:
-        result = invite_operators(message.chat.id)
+        result = core.invite_operators(message.chat.id)
         if result == 0:
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
                                   "/end_conversation, чтобы отменить запрос")
@@ -45,10 +41,10 @@ def request_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
-    (_, client_local), (operator_tg, operator_local) = get_conversing(message.chat.id)
+    (_, client_local), (operator_tg, operator_local) = core.get_conversing(message.chat.id)
 
     if operator_tg is None:
-        if clear_invitation_messages(message.chat.id):
+        if core.clear_invitation_messages(message.chat.id):
             bot.reply_to(message, "Ожидание операторов отменено. Используйте /request_conversation, чтобы запросить "
                                   "помощь снова")
         else:
@@ -73,7 +69,7 @@ def end_conversation_handler(message: telebot.types.Message):
         keyboard.add(telebot.types.InlineKeyboardButton("Не хочу оценивать",
                                                         callback_data=contract_callback_data_and_jdump(d)))
 
-        end_conversation(message.chat.id)
+        core.end_conversation(message.chat.id)
         bot.reply_to(message, "Беседа с оператором прекратилась. Хотите оценить свое самочувствие после нее? "
                               "Вы остаетесь анонимным", reply_markup=keyboard)
         bot.send_message(operator_tg, f"Пользователь №{client_local} прекратил беседу")
@@ -82,7 +78,7 @@ def end_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
-    (client_tg, _), (operator_tg, _) = get_conversing(message.chat.id)
+    (client_tg, _), (operator_tg, _) = core.get_conversing(message.chat.id)
 
     if client_tg is None:
         bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /request_conversation. Сейчас у вас "
@@ -93,7 +89,8 @@ def text_message_handler(message: telebot.types.Message):
 
     reply_to = None
     if message.reply_to_message is not None:
-        with PrettyCursor() as cursor:
+        # TODO: god, this line (and similar one below) is so disgusting. I want to fix it ASAP. #22
+        with core._users_controller._conn_pool.PrettyCursor() as cursor:
             cursor.execute("SELECT sender_message_id FROM reflected_messages WHERE sender_chat_id=%s AND "
                            "receiver_chat_id=%s AND receiver_message_id=%s",
                            (interlocutor_id, message.chat.id, message.reply_to_message.message_id))
@@ -115,7 +112,7 @@ def text_message_handler(message: telebot.types.Message):
 
     sent = bot.send_message(interlocutor_id, message.text, reply_to_message_id=reply_to)
 
-    with PrettyCursor() as cursor:
+    with core._users_controller._conn_pool.PrettyCursor() as cursor:
         query = "INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, " \
                 "receiver_message_id) VALUES (%s, %s, %s, %s)"
         cursor.execute(query, (message.chat.id, message.message_id, sent.chat.id, sent.message_id))

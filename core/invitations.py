@@ -1,5 +1,4 @@
 from sys import stderr
-from threading import Lock
 from traceback import format_exc
 
 import telebot
@@ -7,7 +6,7 @@ import telebot
 from .users import UsersController
 from .conversations import ConversationsController
 from ..telegram_bot.utils.callback_helpers import contract_callback_data_and_jdump
-from ..telegram_bot._bot import bot  # TODO: remove this terrible shit
+from ..telegram_bot._init_objects import bot  # TODO: remove this terrible shit
 
 
 class InvitationsController:
@@ -25,9 +24,6 @@ class InvitationsController:
         # telegram id of a message, which invites the operator to join a conversation with the client
         # (simpler `{client_id: [(operator_id, message_id)]}`)
         self._operators_invitations_messages = {}
-        # `_conversation_starter_lock` is a lock which must be acquired when working with
-        # `_operators_invitations_messages`
-        self._conversation_starter_lock = Lock()
 
     def invite_operators(self, tg_client_id: int) -> int:
         """
@@ -46,7 +42,7 @@ class InvitationsController:
                                                         callback_data=contract_callback_data_and_jdump(callback_data)))
         local_client_id = self.users_controller.get_local_id(tg_client_id)
 
-        with self._conversation_starter_lock:
+        with self.conversations_controller.conversations_starter_finisher_lock:
             free_operators = set(self.users_controller.get_free_operators()) - {tg_client_id}
             if not free_operators:
                 return 2
@@ -83,7 +79,7 @@ class InvitationsController:
         :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, had now been
             removed), `False` otherwise
         """
-        with self._conversation_starter_lock:
+        with self.conversations_controller.conversations_starter_finisher_lock:
             if tg_client_id in self._operators_invitations_messages.keys():
                 for (operator_id, message_id) in self._operators_invitations_messages[tg_client_id]:
                     bot.delete_message(operator_id, message_id)

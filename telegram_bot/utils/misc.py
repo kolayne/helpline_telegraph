@@ -5,8 +5,7 @@ from typing import Callable
 
 import telebot
 
-from ...core.users import get_admins_ids
-from .._bot import bot  # TODO: remove this terrible shit
+from .._init_objects import core, bot
 
 
 def notify_admins(**kwargs) -> bool:
@@ -18,7 +17,7 @@ def notify_admins(**kwargs) -> bool:
         otherwise
     """
     try:
-        admins = get_admins_ids()
+        admins = core.get_admins_ids()
     except Exception:
         print("Couldn't get admins ids inside of `notify_admins`:", file=stderr)
         print(format_exc(), file=stderr)
