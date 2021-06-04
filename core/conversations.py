@@ -21,6 +21,9 @@ class ConversationsController:
         **NOT RECOMMENDED**, and you should only perform it if you're sure no one relies on the described behavior
         (for example, `InvitationsController` **does**, and if you perform the described patch, a race condition will
         arise)
+
+        Warning (TODO): `conversations_starter_finisher_lock` will be removed when resolving #37, because the DBMS will
+        be responsible for invitations and conversations co-consistency
     """
 
     conversations_starter_finisher_lock: Lock
