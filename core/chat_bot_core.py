@@ -13,7 +13,7 @@ class ChatBotCore:
     #                                  the border between `ChatBotCore`'s and controllers' responsibilities is.
 
     def __init__(self, db_host: str, db_name: str, db_username: str, db_password: str,
-                 send_invitation_callback: Callable[[int, str], int],
+                 send_invitation_callback: Callable[[int, int, str], int],
                  delete_invitation_callback: Callable[[int, int], Any]):
         conn_pool = DatabaseConnectionPool(db_host, db_name, db_username, db_password)
         self._users_controller = UsersController(conn_pool)
@@ -37,5 +37,5 @@ class ChatBotCore:
                 return controller.__getattribute__(item)
 
         # If reached this point, then `item` is not defined in any of the controllers. Produce `AttributeError`
-        # (by calling `object.__getattr__`):
-        return super().__getattr__(item)
+        # (by calling `object.__getattribute__`):
+        return super().__getattribute__(item)

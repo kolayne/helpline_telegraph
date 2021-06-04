@@ -45,12 +45,13 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_decontract_callback_data(call.data)
-    with core.conversations_starter_finisher_lock:
-        if call.message.chat.id in core.operators_invitations_messages.keys():
-            bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
-            return
+    # TODO: There are a private member access (`core._operators_invitations_messages`) and a race condition
+    #  (conversation can begin after the if statement) here. Both will be fixed with #37
+    if call.message.chat.id in core._operators_invitations_messages.keys():
+        bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
+        return
 
-        conversation_began = core.begin_conversation(d['client_id'], call.message.chat.id)
+    conversation_began = core.begin_conversation(d['client_id'], call.message.chat.id)
 
     if conversation_began:
         core.clear_invitation_messages(d['client_id'])

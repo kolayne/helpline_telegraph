@@ -10,7 +10,7 @@ from .conversations import ConversationsController
 
 class InvitationsController:
     def __init__(self, users_controller: UsersController, conversations_controller: ConversationsController,
-                 send_invitation_callback: Callable[[int, str], int],
+                 send_invitation_callback: Callable[[int, int, str], int],
                  delete_invitation_callback: Callable[[int, int], Any]):
         self.users_controller = users_controller
         self.conversations_controller = conversations_controller
@@ -58,7 +58,7 @@ class InvitationsController:
                 try:
                     msg_ids.append((
                         tg_operator_id,
-                        self.send_invitation_callback(tg_operator_id,
+                        self.send_invitation_callback(tg_operator_id, tg_client_id,
                                                       f"Пользователь №{local_client_id} хочет побеседовать. Нажмите "
                                                       "кнопку ниже, чтобы стать его оператором")
                     ))
