@@ -1,11 +1,11 @@
 from functools import wraps
 from sys import stderr
 from traceback import format_exc
-from typing import Callable
+from typing import Callable, Union, Any
 
 import telebot
 
-from .._init_objects import core, bot
+from .._init_objects import bot, core
 
 
 def notify_admins(**kwargs) -> bool:
@@ -42,11 +42,11 @@ def notify_admins(**kwargs) -> bool:
     return sent
 
 
-def nonfalling_handler(func: Callable):
+def nonfalling_handler(func: Callable) -> Any:
     @wraps(func)
-    def ans(message: telebot.types.Message, *args, **kwargs):
+    def ans(message: Union[telebot.types.Message, telebot.types.CallbackQuery], *args, **kwargs):
         try:
-            func(message, *args, **kwargs)
+            return func(message, *args, **kwargs)
         except Exception:
             try:
                 # For callback query handlers

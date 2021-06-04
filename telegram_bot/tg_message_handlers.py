@@ -2,9 +2,9 @@ from datetime import datetime
 
 import telebot
 
-from ._init_objects import core, bot
+from ._init_objects import bot, core
 from .utils.common import nonfalling_handler
-from .utils.tg_callback_helpers import seconds_since_local_epoch, contract_callback_data_and_jdump
+from .utils.tg_callback_shortener import seconds_since_local_epoch, shorten_callback_data_and_jdump
 
 
 class AnyContentType:
@@ -64,14 +64,14 @@ def end_conversation_handler(message: telebot.types.Message):
 
         keyboard.add(
             telebot.types.InlineKeyboardButton("Лучше",
-                                               callback_data=contract_callback_data_and_jdump({**d, 'mood': 'better'})),
+                                               callback_data=shorten_callback_data_and_jdump({**d, 'mood': 'better'})),
             telebot.types.InlineKeyboardButton("Так же",
-                                               callback_data=contract_callback_data_and_jdump({**d, 'mood': 'same'})),
+                                               callback_data=shorten_callback_data_and_jdump({**d, 'mood': 'same'})),
             telebot.types.InlineKeyboardButton("Хуже",
-                                               callback_data=contract_callback_data_and_jdump({**d, 'mood': 'worse'}))
+                                               callback_data=shorten_callback_data_and_jdump({**d, 'mood': 'worse'}))
         )
         keyboard.add(telebot.types.InlineKeyboardButton("Не хочу оценивать",
-                                                        callback_data=contract_callback_data_and_jdump(d)))
+                                                        callback_data=shorten_callback_data_and_jdump(d)))
 
         core.end_conversation(message.chat.id)
         bot.reply_to(message, "Беседа с оператором прекратилась. Хотите оценить свое самочувствие после нее? "

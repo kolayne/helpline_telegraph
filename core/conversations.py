@@ -48,9 +48,9 @@ class ConversationsController:
             second is the local id
         """
         with self._conn_pool.PrettyCursor() as cursor:
-            cursor.execute("SELECT client_id,   (SELECT local_id FROM users WHERE tg_id=client_id), "
-                           "       operator_id, (SELECT local_id FROM users WHERE tg_id=operator_id) "
-                           "FROM conversations WHERE client_id=%s OR operator_id=%s",
+            cursor.execute("SELECT client_chat_id,   (SELECT local_id FROM users WHERE chat_id=client_chat_id), "
+                           "       operator_chat_id, (SELECT local_id FROM users WHERE chat_id=operator_chat_id) "
+                           "FROM conversations WHERE client_chat_id=%s OR operator_chat_id=%s",
                            (tg_id, tg_id))
             try:
                 a, b, c, d = cursor.fetchone()
@@ -74,7 +74,7 @@ class ConversationsController:
         """
         with self.conversations_starter_finisher_lock, self._conn_pool.PrettyCursor() as cursor:
             try:
-                cursor.execute("INSERT INTO conversations(client_id, operator_id) VALUES (%s, %s)",
+                cursor.execute("INSERT INTO conversations(client_chat_id, operator_chat_id) VALUES (%s, %s)",
                                (tg_client_id, tg_operator_id))
             except psycopg2.errors.IntegrityError:  # Either this operator or this client is busy, or something else bad
                 return False
@@ -93,4 +93,4 @@ class ConversationsController:
         :param tg_client_id: Telegram id of the client ending the conversation
         """
         with self.conversations_starter_finisher_lock, self._conn_pool.PrettyCursor() as cursor:
-            cursor.execute("DELETE FROM conversations WHERE client_id=%s", (tg_client_id,))
+            cursor.execute("DELETE FROM conversations WHERE client_chat_id=%s", (tg_client_id,))

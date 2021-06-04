@@ -1,12 +1,12 @@
 import telebot
 
-from ._init_objects import core, bot
-from .utils.tg_callback_helpers import jload_and_decontract_callback_data, datetime_from_local_epoch_secs
+from ._init_objects import bot, core
+from .utils.tg_callback_shortener import jload_and_expand_callback_data, datetime_from_local_epoch_secs
 from .utils.common import nonfalling_handler, notify_admins
 
 
 def get_type_from_callback_data(call_data):
-    d = jload_and_decontract_callback_data(call_data)
+    d = jload_and_expand_callback_data(call_data)
     if not isinstance(d, dict):
         return None
     return d.get('type')
@@ -22,7 +22,7 @@ def invalid_callback_query(call: telebot.types.CallbackQuery):
 @bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) == 'conversation_rate')
 @nonfalling_handler
 def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
-    d = jload_and_decontract_callback_data(call.data)
+    d = jload_and_expand_callback_data(call.data)
 
     mood = d.get('mood')
     if mood == 'worse':
@@ -44,7 +44,7 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @bot.callback_query_handler(func=lambda call: get_type_from_callback_data(call.data) == 'conversation_acceptation')
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
-    d = jload_and_decontract_callback_data(call.data)
+    d = jload_and_expand_callback_data(call.data)
     # TODO: There are a private member access (`core._operators_invitations_messages`) and a race condition
     #  (conversation can begin after the if statement) here. Both will be fixed with #37
     if call.message.chat.id in core._operators_invitations_messages.keys():

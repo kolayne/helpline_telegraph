@@ -7,10 +7,9 @@ from .invitations import InvitationsController
 
 
 class ChatBotCore:
-    # When working on #37, (among other things?) I'm going to "override" `begin_conversation`/`end_conversation`
-    # methods, so that `ChatBotCore` will interact with invitations controller too, when changing some conversation's
-    # state. So, when working on #33, TODO: in the class's docs mention, why these overridden function exist, and where
-    #                                  the border between `ChatBotCore`'s and controllers' responsibilities is.
+    # When working on #37, I'm going to "override" `begin_conversation`/`end_conversation` methods, so that
+    # `ChatBotCore` will do some additional work there. TODO: not forget to mention this ability of the class in its
+    #  docs when I'll be writing them (#33)
 
     def __init__(self, db_host: str, db_name: str, db_username: str, db_password: str,
                  send_invitation_callback: Callable[[int, int, str], int],
@@ -25,7 +24,7 @@ class ChatBotCore:
         # Pretend that besides the attributes the object really has and the overridden methods, it also has the methods
         # defined in the controllers
         return set().union(
-            super().__dir__(),
+            super().__dir__(),  # Attributes/methods we actually have
             dir(self._users_controller),
             dir(self._conversations_controller),
             dir(self._invitations_controller)
