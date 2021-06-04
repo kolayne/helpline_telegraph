@@ -1,4 +1,4 @@
-from typing import Set
+from typing import Set, Any, Callable
 
 from .db_connector import DatabaseConnectionPool
 from .users import UsersController
@@ -12,11 +12,14 @@ class ChatBotCore:
     # state. So, when working on #33, TODO: in the class's docs mention, why these overridden function exist, and where
     #                                  the border between `ChatBotCore`'s and controllers' responsibilities is.
 
-    def __init__(self, db_host: str, db_name: str, db_username: str, db_password: str):
+    def __init__(self, db_host: str, db_name: str, db_username: str, db_password: str,
+                 send_invitation_callback: Callable[[int, str], int],
+                 delete_invitation_callback: Callable[[int, int], Any]):
         conn_pool = DatabaseConnectionPool(db_host, db_name, db_username, db_password)
         self._users_controller = UsersController(conn_pool)
         self._conversations_controller = ConversationsController(conn_pool)
-        self._invitations_controller = InvitationsController(self._users_controller, self._conversations_controller)
+        self._invitations_controller = InvitationsController(self._users_controller, self._conversations_controller,
+                                                             send_invitation_callback, delete_invitation_callback)
 
     def __dir__(self) -> Set[str]:
         # Pretend that besides the attributes the object really has and the overridden methods, it also has the methods

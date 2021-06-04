@@ -2,15 +2,16 @@ from sys import stderr
 from traceback import format_exc
 
 import telebot
+from typing import Callable, Any
 
 from .users import UsersController
 from .conversations import ConversationsController
-from ..telegram_bot.utils.callback_helpers import contract_callback_data_and_jdump
-from ..telegram_bot._init_objects import bot  # TODO: remove this terrible shit
 
 
 class InvitationsController:
-    def __init__(self, users_controller: UsersController, conversations_controller: ConversationsController):
+    def __init__(self, users_controller: UsersController, conversations_controller: ConversationsController,
+                 send_invitation_callback: Callable[[int, str], int],
+                 delete_invitation_callback: Callable[[int, int], Any]):
         self.users_controller = users_controller
         self.conversations_controller = conversations_controller
 
@@ -25,6 +26,9 @@ class InvitationsController:
         # (simpler `{client_id: [(operator_id, message_id)]}`)
         self._operators_invitations_messages = {}
 
+        self.send_invitation_callback = send_invitation_callback
+        self.delete_invitation_callback = delete_invitation_callback
+
     def invite_operators(self, tg_client_id: int) -> int:
         """
         Sends out invitation messages to all currently free operators, via which they can start a conversation with the
@@ -35,11 +39,6 @@ class InvitationsController:
             successfully, `1` tells that the user had requested invitations before, `2` indicates that there are no free
             operators, `3` means that the client is in a conversation already (either as a client or as an operator)
         """
-        # TODO: rewrite this so that all the telebot thing happens in `telegram_bot`, not in `core`
-        keyboard = telebot.types.InlineKeyboardMarkup()
-        callback_data = {'type': 'conversation_acceptation', 'client_id': tg_client_id}
-        keyboard.add(telebot.types.InlineKeyboardButton("Присоединиться",
-                                                        callback_data=contract_callback_data_and_jdump(callback_data)))
         local_client_id = self.users_controller.get_local_id(tg_client_id)
 
         with self.conversations_controller.conversations_starter_finisher_lock:
@@ -59,9 +58,9 @@ class InvitationsController:
                 try:
                     msg_ids.append((
                         tg_operator_id,
-                        bot.send_message(tg_operator_id, f"Пользователь №{local_client_id} хочет побеседовать. Нажмите "
-                                                         "кнопку ниже, чтобы стать его оператором",
-                                         reply_markup=keyboard).message_id
+                        self.send_invitation_callback(tg_operator_id,
+                                                      f"Пользователь №{local_client_id} хочет побеседовать. Нажмите "
+                                                      "кнопку ниже, чтобы стать его оператором")
                     ))
                 except telebot.apihelper.ApiException:
                     print("Telegram API Exception while sending out operators invitations:", file=stderr)
@@ -82,7 +81,7 @@ class InvitationsController:
         with self.conversations_controller.conversations_starter_finisher_lock:
             if tg_client_id in self._operators_invitations_messages.keys():
                 for (operator_id, message_id) in self._operators_invitations_messages[tg_client_id]:
-                    bot.delete_message(operator_id, message_id)
+                    self.delete_invitation_callback(operator_id, message_id)
                 del self._operators_invitations_messages[tg_client_id]
 
                 return True
