@@ -3,8 +3,12 @@ from datetime import datetime
 import telebot
 
 from ._init_objects import core, bot
-from .utils import nonfalling_handler, AnyContentType
-from .utils.callback_helpers import seconds_since_local_epoch, contract_callback_data_and_jdump
+from .utils.misc import nonfalling_handler
+from .utils.tg_callback_helpers import seconds_since_local_epoch, contract_callback_data_and_jdump
+
+
+class AnyContentType:
+    def __contains__(self, item): return True
 
 
 @bot.message_handler(commands=['start', 'help'])

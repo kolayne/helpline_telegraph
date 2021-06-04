@@ -68,7 +68,3 @@ def nonfalling_handler(func: Callable):
                 print(format_exc(), file=stderr)
 
     return ans
-
-
-class AnyContentType:
-    def __contains__(self, item): return True
