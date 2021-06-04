@@ -12,8 +12,8 @@ def notify_admins(**kwargs) -> bool:
     """
     Send a text message to all the bot administrators. Any exceptions occurring inside are suppressed
 
-    ::param kwargs: Keyword arguments to be forwarded to `bot.send_message` (shouldn't contain `chat_id`)
-    :return: `True` if a message was successfully delivered to at least one admin (i. e. no exception occurred), `False`
+    :param kwargs: Keyword arguments to be forwarded to `bot.send_message` (must not contain `chat_id`)
+    :return: `True` if a message was successfully delivered (i. e. no exception occurred) to at least one admin, `False`
         otherwise
     """
     try:

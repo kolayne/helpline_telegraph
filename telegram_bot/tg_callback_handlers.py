@@ -2,7 +2,7 @@ import telebot
 
 from ._init_objects import core, bot
 from .utils.tg_callback_helpers import jload_and_decontract_callback_data, datetime_from_local_epoch_secs
-from .utils.misc import nonfalling_handler, notify_admins
+from .utils.common import nonfalling_handler, notify_admins
 
 
 def get_type_from_callback_data(call_data):

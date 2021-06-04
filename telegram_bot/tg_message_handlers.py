@@ -3,7 +3,7 @@ from datetime import datetime
 import telebot
 
 from ._init_objects import core, bot
-from .utils.misc import nonfalling_handler
+from .utils.common import nonfalling_handler
 from .utils.tg_callback_helpers import seconds_since_local_epoch, contract_callback_data_and_jdump
 
 
