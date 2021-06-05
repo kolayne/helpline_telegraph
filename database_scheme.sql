@@ -16,12 +16,20 @@ CREATE TABLE conversations
     operator_chat_id integer NOT NULL UNIQUE REFERENCES users
 );
 
+/*
+ Note that every message is expected to be stored twice in this table: one row has interlocutor1 and interlocutor2
+ swapped.
+
+ This **might** be a subject to refactoring: probably it would be better to store every message once and make some big
+ long query (most likely hidden inside a function), which would select the "other interlocutor's" data. If you have any
+ thoughts, please, file an issue!
+ */
 CREATE TABLE reflected_messages
 (
-    sender_chat_id      integer NOT NULL REFERENCES users (chat_id),
-    sender_message_id   integer NOT NULL,
-    receiver_chat_id    integer NOT NULL REFERENCES users (chat_id),
-    receiver_message_id integer NOT NULL
+    interlocutor1_chat_id    integer NOT NULL REFERENCES users (chat_id),
+    interlocutor1_message_id integer NOT NULL,
+    interlocutor2_chat_id    integer NOT NULL REFERENCES users (chat_id),
+    interlocutor2_message_id integer NOT NULL
 );
 
 

@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 
 # Callback data dict keys are converted to UPPERCASE abbreviations; values are converted to lowercase
-callback_data_contractions = {'type': 'T',
+callback_data_shortenings = {'type': 'T',
                               'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
                               'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w',
                               'client_id': 'CID', 'conversation_acceptation': 'ca'}
@@ -18,13 +18,13 @@ def shorten_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]]
     For each `x` which is a key or a value of `d`, if `x in converter.keys()`, `x` is replaced with `converter[x]` in
     the resulting dictionary, otherwise it remains unchanged
 
-    :param d: Callback data to be contracted
+    :param d: Callback data to be shortened
     :param converter: (default `None`) Dictionary with replacements (keys of `converter` found in `d` are replaced with
-        the corresponding values). If `None`, `callback_data_contractions` global variable is used
-    :return: `d` dictionary with keys and values contracted with `converter`
+        the corresponding values). If `None`, `callback_data_shortenings` global variable is used
+    :return: `d` dictionary with keys and values shortened with `converter`
     """
     if converter is None:
-        converter = callback_data_contractions
+        converter = callback_data_shortenings
 
     e = {}
     for key, value_ in d.items():
@@ -41,9 +41,9 @@ def shorten_callback_data_and_jdump(d: Dict[Any, Any], converter: Optional[Dict[
     """
     Calls `shorten_callback_data` with the given arguments and `json.dumps` the result
 
-    :param d: Callback data to be contracted with `contract_callback_data`
-    :param converter: Converter to be used in `contract_callback_data`
-    :return: Dictionary returned by `contract_callback_data` and dumped with json (`json.dumps` is called with an extra
+    :param d: Callback data to be shortened with `shorten_callback_data`
+    :param converter: Converter to be used in `shorten_callback_data`
+    :return: Dictionary returned by `shorten_callback_data` and dumped with json (`json.dumps` is called with an extra
         argument `separators=(',', ':')`)
     """
     return json.dumps(shorten_callback_data(d, converter), separators=(',', ':'))
@@ -51,16 +51,16 @@ def shorten_callback_data_and_jdump(d: Dict[Any, Any], converter: Optional[Dict[
 def expand_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] = None) -> Dict[Any, Any]:
     """
     The synonym for `shorten_callback_data` with an exception that the `converter` parameter defaults to the reversed
-    `callback_data_contractions` dictionary, not to the original one
+    `callback_data_shortenings` dictionary, not to the original one
 
     :param d: Callback data to be expanded
-    :param converter: (default `None`) Dictionary with replacements to be forwarded to `contract_callback_data`. If
-        `None`, the <b>reversed</b> `callback_data_contractions` is used
+    :param converter: (default `None`) Dictionary with replacements to be forwarded to `shorten_callback_data`. If
+        `None`, the <b>reversed</b> `callback_data_shortenings` is used
     :return: `d` dictionary with keys and values expanded with `converter`
     """
     if converter is None:
-        # Use inverted `callback_data_contractions` by default
-        converter = {v: k for k, v in callback_data_contractions.items()}
+        # Use inverted `callback_data_shortenings` by default
+        converter = {v: k for k, v in callback_data_shortenings.items()}
     return shorten_callback_data(d, converter)
 
 def jload_and_expand_callback_data(d: str, converter: Optional[Dict[Any, Any]] = None) -> Dict[Any, Any]:
@@ -69,7 +69,7 @@ def jload_and_expand_callback_data(d: str, converter: Optional[Dict[Any, Any]] =
 
     :param d: Callback data to be expanded
     :param converter: (default `None`) Dictionary with replacements to be forwarded to `expand_callback_data`.
-        If `None`, the value is forwarded as is (`expand_callback_data(<...>, None)` is called)
+        If `None`, the value is forwarded as is (the function called is `expand_callback_data(d, None)`)
     :return: `d` dictionary with keys and values expanded with `converter`
     """
     return expand_callback_data(json.loads(d), converter)
