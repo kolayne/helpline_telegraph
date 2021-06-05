@@ -4,11 +4,11 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 
-# Callback data dict keys are converted to UPPERCASE abbreviations; values are converted to lowercase
+# Callback data dict keys are converted to UPPERCASE abbreviations; values are lowercase
 callback_data_shortenings = {'type': 'T',
-                              'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
-                              'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w',
-                              'client_id': 'CID', 'conversation_acceptation': 'ca'}
+                             'operator_ids': 'OIS', 'conversation_end_moment': 'CEM', 'mood': 'M',
+                             'conversation_rate': 'cr', 'better': 'b', 'same': 's', 'worse': 'w',
+                             'client_id': 'CI', 'client_local_id': 'CLI', 'conversation_acceptation': 'ca'}
 
 
 def shorten_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] = None) -> Dict[Any, Any]:
@@ -37,6 +37,7 @@ def shorten_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]]
 
     return e
 
+
 def shorten_callback_data_and_jdump(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] = None) -> str:
     """
     Calls `shorten_callback_data` with the given arguments and `json.dumps` the result
@@ -47,6 +48,7 @@ def shorten_callback_data_and_jdump(d: Dict[Any, Any], converter: Optional[Dict[
         argument `separators=(',', ':')`)
     """
     return json.dumps(shorten_callback_data(d, converter), separators=(',', ':'))
+
 
 def expand_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] = None) -> Dict[Any, Any]:
     """
@@ -63,6 +65,7 @@ def expand_callback_data(d: Dict[Any, Any], converter: Optional[Dict[Any, Any]] 
         converter = {v: k for k, v in callback_data_shortenings.items()}
     return shorten_callback_data(d, converter)
 
+
 def jload_and_expand_callback_data(d: str, converter: Optional[Dict[Any, Any]] = None) -> Dict[Any, Any]:
     """
     The synonym for `expand_callback_data(json.loads(d), converter)`
@@ -78,8 +81,10 @@ def jload_and_expand_callback_data(d: str, converter: Optional[Dict[Any, Any]] =
 # Used to reduce number of digits in the `total_seconds` sent as a callback
 local_epoch = datetime(2020, 11, 1)
 
+
 def seconds_since_local_epoch(dt):
     return int((dt - local_epoch).total_seconds())
+
 
 def datetime_from_local_epoch_secs(secs):
     return local_epoch + timedelta(seconds=secs)
