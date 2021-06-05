@@ -7,6 +7,7 @@ from .db_connector import DatabaseConnectionPool
 
 
 class ConversationsController:
+
     """
     # TODO: add the docs of the class itself (#33)
 
