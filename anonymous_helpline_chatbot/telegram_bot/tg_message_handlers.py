@@ -60,7 +60,7 @@ def end_conversation_handler(message: telebot.types.Message):
     else:
         keyboard = telebot.types.InlineKeyboardMarkup()
         d = {'type': 'conversation_rate', 'operator_ids': [operator_tg, operator_local],
-             'conversation_end_moment': seconds_since_local_epoch(datetime.now())}
+             'client_local_id': client_local, 'conversation_end_moment': seconds_since_local_epoch(datetime.now())}
 
         keyboard.add(
             telebot.types.InlineKeyboardButton("Лучше",

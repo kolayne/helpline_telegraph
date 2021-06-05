@@ -27,10 +27,12 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
     mood = d.get('mood')
     if mood == 'worse':
         operator_tg, operator_local = d['operator_ids']
+        client_local = d['client_local_id']
         conversation_end_moment = datetime_from_local_epoch_secs(d['conversation_end_moment'])
-        notification_text = "Клиент чувствует себя хуже после беседы с оператором {}, которая завершилась в {}".format(
-            f"[{operator_local}](tg://user?id={operator_tg})", conversation_end_moment
-        )
+
+        notification_text = f"Клиент {client_local} чувствует себя хуже после беседы с оператором " \
+                            f"№[{operator_local}](tg://user?id={operator_tg}), которая завершилась в " \
+                            f"{conversation_end_moment}"
         notify_admins(text=notification_text, parse_mode="Markdown")
 
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
