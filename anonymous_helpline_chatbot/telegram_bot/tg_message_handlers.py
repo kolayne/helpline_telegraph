@@ -27,7 +27,8 @@ def request_conversation_handler(message: telebot.types.Message):
     elif tg_client_id == message.chat.id:
         bot.reply_to(message, "Вы уже в беседе с оператором. Используйте /end_conversation чтобы прекратить")
     else:
-        result = core.invite_operators(message.chat.id)
+        core.invite_to_client(message.chat.id)
+        result = 0  # TODO: handle different possible cases here when `ChatBotCore` is ready
         if result == 0:
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
                                   "/end_conversation, чтобы отменить запрос")
@@ -48,7 +49,8 @@ def end_conversation_handler(message: telebot.types.Message):
     (_, client_local), (operator_tg, operator_local) = core.get_conversing(message.chat.id)
 
     if operator_tg is None:
-        if core.clear_invitation_messages(message.chat.id):
+        # TODO: handle different possible cases here when `ChatBotCore` is ready
+        if core.clear_invitations_to_client(message.chat.id) or True:
             bot.reply_to(message, "Ожидание операторов отменено. Используйте /request_conversation, чтобы запросить "
                                   "помощь снова")
         else:

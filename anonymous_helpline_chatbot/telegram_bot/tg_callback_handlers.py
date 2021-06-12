@@ -31,7 +31,7 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
         conversation_end_moment = datetime_from_local_epoch_secs(d['conversation_end_moment'])
 
         notification_text = f"Клиент {client_local} чувствует себя хуже после беседы с оператором " \
-                            f"№[{operator_local}](tg://user?id={operator_tg}), которая завершилась в " \
+                            f"[{operator_local}](tg://user?id={operator_tg}), которая завершилась в " \
                             f"{conversation_end_moment}"
         notify_admins(text=notification_text, parse_mode="Markdown")
 
@@ -54,15 +54,20 @@ def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     #     return
     # UPD: now we just silently drop the invitations for the current operator (if there are any). This is a temporary
     # shitty replacement, which is to be fixed with #37
-    core.clear_invitation_messages(call.message.chat.id)
+    # Note: yes, clearing invitations _for client_, because we want to make sure that the operator (in the context of
+    # this conversation acceptation) is not a client in any other context
+    core.clear_invitations_to_client(call.message.chat.id)
 
     conversation_began = core.begin_conversation(d['client_id'], call.message.chat.id)
 
-    if conversation_began:
-        core.clear_invitation_messages(d['client_id'])
+    bot.answer_callback_query(call.id)
 
-        (_, local_client_id), (_, local_operator_id) = core.get_conversing(call.message.chat.id)
-        bot.answer_callback_query(call.id)
+    # TODO: handle more possible cases of conversation acceptation fail, when `ConversationsController` is ready
+    if conversation_began:
+        core.clear_invitations_to_client(d['client_id'])
+
+        local_client_id = core.get_local_id(d['client_id'])
+        local_operator_id = core.get_local_id(call.message.chat.id)
         bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
                                                "сообщение, и собеседник его увидит")
         bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "

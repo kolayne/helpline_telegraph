@@ -1,19 +1,16 @@
 from typing import Callable, Any
 
-from .db_connector import DatabaseConnectionPool
+from .db_connector import DatabaseConnectionPool, cursor_type
 from .users import UsersController
-from .conversations import ConversationsController
 
 
 class InvitationsController:
-    def __init__(self, database_connection_pool: DatabaseConnectionPool,
-                 users_controller: UsersController, conversations_controller: ConversationsController,
+    def __init__(self, database_connection_pool: DatabaseConnectionPool, users_controller: UsersController,
                  send_invitation_callback: Callable[[int, int, str], int],
                  delete_invitation_callback: Callable[[int, int], Any]):
         self._conn_pool = database_connection_pool
 
         self.users_controller = users_controller
-        self.conversations_controller = conversations_controller
 
         # Whenever a client requests a conversation, all the <b>free</b> operators get a message which invites them to
         # start chatting with that client. Whenever an operator accepts the invitation, all the messages which invite to
@@ -24,15 +21,26 @@ class InvitationsController:
         self.send_invitation_callback = send_invitation_callback
         self.delete_invitation_callback = delete_invitation_callback
 
-    def invite_operators(self, client_chat_id: int) -> None:
+    def _invite_operator_to_client(self, cursor: cursor_type, operator_chat_id: int, client_chat_id: int) -> None:
+        client_local_id = self.users_controller.get_local_id(client_chat_id)
+
+        sent_message_id = self.send_invitation_callback(operator_chat_id, client_chat_id,
+                                                        f"Пользователь №{client_local_id} хочет побеседовать. Нажмите "
+                                                        "кнопку ниже, чтобы стать его оператором")
+
+        # Unless message sending failed for some internal front-end reason, store invitation in the database
+        if sent_message_id is not None:
+            cursor.execute("INSERT INTO sent_invitations(operator_chat_id, client_chat_id, invitation_message_id) "
+                           "VALUES (%s, %s, %s)",
+                           (operator_chat_id, client_chat_id, sent_message_id))
+
+    def invite_to_client(self, client_chat_id: int) -> None:
         """
         Sends out invitation messages to all currently free operators, via which they can start a conversation with the
         client
 
         :param client_chat_id: Messenger identifier of the user to invite operators to have conversation with
         """
-        client_local_id = self.users_controller.get_local_id(client_chat_id)
-
         with self._conn_pool.PrettyCursor() as cursor:
             # Prevent any invitations from being sent or deleted by parallel transactions until this one completes
             cursor.execute("LOCK TABLE sent_invitations IN SHARE MODE")
@@ -69,33 +77,27 @@ class InvitationsController:
                            "  AND sent_invitations.client_chat_id IS NULL ",
                            (client_chat_id, client_chat_id))
 
-            # FIXME: deprecated. The behavior below will be altered very soon
-            # If no operators were found OR every operator already has an invitation
-            # We actually can't distinguish between this two cases. Fortunately, we won't need to, soon
-            if cursor.rowcount == 0:
-                return 2
-
-            # Each element of `sent_invitations_id_pairs` is `(operator_chat_id, sent_message_id)`
-            sent_invitations_id_pairs = []
             for operator_chat_id, in cursor.fetchall():
-                sent_invitations_id_pairs.append((
-                    operator_chat_id,
-                    self.send_invitation_callback(operator_chat_id, client_chat_id,
-                                                  f"Пользователь №{client_local_id} хочет побеседовать. Нажмите "
-                                                  "кнопку ниже, чтобы стать его оператором")
-                ))
+                self._invite_operator_to_client(cursor, operator_chat_id, client_chat_id)
 
-            for operator_chat_id, sent_message_id in sent_invitations_id_pairs:
-                if sent_message_id is None:  # Couldn't send message for some front-end internal reason
-                    continue
+    def invite_for_operator(self, operator_chat_id: int) -> None:
+        with self._conn_pool.PrettyCursor() as cursor:
+            # Prevent any invitations from being sent or deleted by parallel transactions
+            cursor.execute("LOCK TABLE sent_invitations IN SHARE MODE")
+            cursor.execute("SELECT DISTINCT client_chat_id FROM sent_invitations")
+            for client_chat_id, in cursor.fetchall():
+                self._invite_operator_to_client(cursor, operator_chat_id, client_chat_id)
 
-                cursor.execute("INSERT INTO sent_invitations(operator_chat_id, client_chat_id, invitation_message_id) "
-                               "VALUES (%s, %s, %s)",
-                               (operator_chat_id, client_chat_id, sent_message_id))
+    def _clear_invitations_of_user(self, chat_id: int) -> bool:
+        with self._conn_pool.PrettyCursor() as cursor:
+            cursor.execute("DELETE FROM sent_invitations WHERE client_chat_id = %s OR operator_chat_id = %s "
+                           "       RETURNING operator_chat_id, invitation_message_id",
+                           (chat_id, chat_id))
+            for operator_chat_id, invitation_message_id in cursor.fetchall():
+                self.delete_invitation_callback(operator_chat_id, invitation_message_id)
+            return cursor.rowcount > 0
 
-        return 0
-
-    def clear_invitation_messages(self, client_chat_id: int) -> bool:
+    def clear_invitations_to_client(self, client_chat_id: int) -> bool:
         """
         Remove messages with invitations to a conversation with the client sent to operators
 
@@ -103,10 +105,7 @@ class InvitationsController:
         :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, had now been
             removed), `False` otherwise
         """
-        with self._conn_pool.PrettyCursor() as cursor:
-            cursor.execute("DELETE FROM sent_invitations WHERE client_chat_id = %s "
-                           "       RETURNING operator_chat_id, invitation_message_id",
-                           (client_chat_id,))
-            for operator_chat_id, invitation_message_id in cursor.fetchall():
-                self.delete_invitation_callback(operator_chat_id, invitation_message_id)
-            return cursor.rowcount > 0
+        return self._clear_invitations_of_user(client_chat_id)
+
+    def clear_invitations_for_operator(self, operator_chat_id: int) -> None:
+        self._clear_invitations_of_user(operator_chat_id)
