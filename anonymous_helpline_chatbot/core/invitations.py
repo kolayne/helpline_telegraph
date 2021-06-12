@@ -1,7 +1,3 @@
-from sys import stderr
-from traceback import format_exc
-
-import telebot
 from typing import Callable, Any
 
 from .db_connector import DatabaseConnectionPool
@@ -28,17 +24,17 @@ class InvitationsController:
         self.send_invitation_callback = send_invitation_callback
         self.delete_invitation_callback = delete_invitation_callback
 
-    def invite_operators(self, tg_client_id: int) -> int:
+    def invite_operators(self, client_chat_id: int) -> int:
         """
         Sends out invitation messages to all currently free operators, via which they can start a conversation with the
         client
 
-        :param tg_client_id: Telegram identifier of the user to invite operators to chat with
+        :param client_chat_id: Messenger identifier of the user to invite operators to have conversation with
         :return: Error code, either of `0`, `1`, `2`, `3`, where `0` indicates that the invitations have been sent
             successfully, `2` means that either the user had requested invitations before, or there are no free
             operators, `3` means that the client is in a conversation already (either as a client or as an operator)
         """
-        local_client_id = self.users_controller.get_local_id(tg_client_id)
+        client_local_id = self.users_controller.get_local_id(client_chat_id)
 
         with self._conn_pool.PrettyCursor() as cursor:
             # Warning: it is assumed that no users can become operators or stop being operators while the chat bot is
@@ -50,7 +46,7 @@ class InvitationsController:
 
             cursor.execute("SELECT EXISTS(SELECT 1 FROM conversations "
                            "              WHERE client_chat_id = %s OR operator_chat_id = %s)",
-                           (tg_client_id, tg_client_id))
+                           (client_chat_id, client_chat_id))
             # In a conversation already (either as a client or as an operator)
             if cursor.fetchone()[0]:
                 return 3
@@ -64,7 +60,7 @@ class InvitationsController:
             here, it performs optimizations. But the result is exactly as if it was doing the following):
             1. SELECT all the users, which are operators (see `WHERE users.is_operator` in the end of the query)
             2. If the client himself is an operator, he shouldn't receive a notification. Remove him from the
-                resulting set (`WHERE ... AND users.chat_id != <tg_client_id>`)
+                resulting set (`WHERE ... AND users.chat_id != <client_chat_id>`)
             3. LEFT OUTER JOIN the selected users with conversations and forget users which are in conversations
                 (`WHERE ... AND conversations.operator_chat_id IS NULL`)
             4. An unusual LEFT OUTER JOIN: we join the remaining users with `sent_invitations`, but the join is on an
@@ -85,7 +81,7 @@ class InvitationsController:
                            "  AND users.chat_id != %s"
                            "  AND conversations.operator_chat_id IS NULL "
                            "  AND sent_invitations.client_chat_id IS NULL ",
-                           (tg_client_id, tg_client_id))
+                           (client_chat_id, client_chat_id))
 
             # FIXME: deprecated. The behavior below will be altered very soon
             # If no operators were found OR every operator already has an invitation
@@ -93,39 +89,38 @@ class InvitationsController:
             if cursor.rowcount == 0:
                 return 2
 
-            # Each element of `sent_invitations_id_pairs` is `(tg_operator_id, sent_message_id)`
+            # Each element of `sent_invitations_id_pairs` is `(operator_chat_id, sent_message_id)`
             sent_invitations_id_pairs = []
-            for tg_operator_id, in cursor.fetchall():
-                try:
-                    sent_invitations_id_pairs.append((
-                        tg_operator_id,
-                        self.send_invitation_callback(tg_operator_id, tg_client_id,
-                                                      f"Пользователь №{local_client_id} хочет побеседовать. Нажмите "
-                                                      "кнопку ниже, чтобы стать его оператором")
-                    ))
-                except telebot.apihelper.ApiException:
-                    print("Telegram API Exception while sending out operators invitations:", file=stderr)
-                    print(format_exc(), file=stderr)
+            for operator_chat_id, in cursor.fetchall():
+                sent_invitations_id_pairs.append((
+                    operator_chat_id,
+                    self.send_invitation_callback(operator_chat_id, client_chat_id,
+                                                  f"Пользователь №{client_local_id} хочет побеседовать. Нажмите "
+                                                  "кнопку ниже, чтобы стать его оператором")
+                ))
 
-            for tg_operator_id, sent_message_id in sent_invitations_id_pairs:
+            for operator_chat_id, sent_message_id in sent_invitations_id_pairs:
+                if sent_message_id is None:  # Couldn't send message for some front-end internal reason
+                    continue
+
                 cursor.execute("INSERT INTO sent_invitations(operator_chat_id, client_chat_id, invitation_message_id) "
                                "VALUES (%s, %s, %s)",
-                               (tg_operator_id, tg_client_id, sent_message_id))
+                               (operator_chat_id, client_chat_id, sent_message_id))
 
         return 0
 
-    def clear_invitation_messages(self, tg_client_id: int) -> bool:
+    def clear_invitation_messages(self, client_chat_id: int) -> bool:
         """
         Remove messages with invitations to a conversation with the client sent to operators
 
-        :param tg_client_id: Telegram identifier of the client to remove invitations to conversation with
+        :param client_chat_id: Messenger identifier of the client to remove invitations to conversation with
         :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, had now been
             removed), `False` otherwise
         """
         with self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("DELETE FROM sent_invitations WHERE client_chat_id = %s "
                            "       RETURNING operator_chat_id, invitation_message_id",
-                           (tg_client_id,))
+                           (client_chat_id,))
             for operator_chat_id, invitation_message_id in cursor.fetchall():
                 self.delete_invitation_callback(operator_chat_id, invitation_message_id)
             return cursor.rowcount > 0
