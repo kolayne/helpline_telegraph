@@ -49,9 +49,12 @@ def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_expand_callback_data(call.data)
     # TODO: There are a private member access (`core._operators_invitations_messages`) and a race condition
     #  (conversation can begin after the if statement) here. Both will be fixed with #37
-    if call.message.chat.id in core._operators_invitations_messages.keys():
-        bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
-        return
+    # if call.message.chat.id in core._operators_invitations_messages.keys():
+    #     bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
+    #     return
+    # UPD: now we just silently drop the invitations for the current operator (if there are any). This is a temporary
+    # shitty replacement, which is to be fixed with #37
+    core.clear_invitation_messages(call.message.chat.id)
 
     conversation_began = core.begin_conversation(d['client_id'], call.message.chat.id)
 
