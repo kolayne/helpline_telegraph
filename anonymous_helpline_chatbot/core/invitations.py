@@ -24,32 +24,18 @@ class InvitationsController:
         self.send_invitation_callback = send_invitation_callback
         self.delete_invitation_callback = delete_invitation_callback
 
-    def invite_operators(self, client_chat_id: int) -> int:
+    def invite_operators(self, client_chat_id: int) -> None:
         """
         Sends out invitation messages to all currently free operators, via which they can start a conversation with the
         client
 
         :param client_chat_id: Messenger identifier of the user to invite operators to have conversation with
-        :return: Error code, either of `0`, `1`, `2`, `3`, where `0` indicates that the invitations have been sent
-            successfully, `2` means that either the user had requested invitations before, or there are no free
-            operators, `3` means that the client is in a conversation already (either as a client or as an operator)
         """
         client_local_id = self.users_controller.get_local_id(client_chat_id)
 
         with self._conn_pool.PrettyCursor() as cursor:
-            # Warning: it is assumed that no users can become operators or stop being operators while the chat bot is
-            #   running. Otherwise also need to do something with the `users` table
-            # Prevent any data modifications in tables `conversations` or `sent_invitations`. This is to avoid
-            #   new conversations starting or invitations being sent (or removed!) by parallel transactions,
-            #   until this one completes
-            cursor.execute("LOCK TABLE conversations, sent_invitations IN SHARE MODE")
-
-            cursor.execute("SELECT EXISTS(SELECT 1 FROM conversations "
-                           "              WHERE client_chat_id = %s OR operator_chat_id = %s)",
-                           (client_chat_id, client_chat_id))
-            # In a conversation already (either as a client or as an operator)
-            if cursor.fetchone()[0]:
-                return 3
+            # Prevent any invitations from being sent or deleted by parallel transactions until this one completes
+            cursor.execute("LOCK TABLE sent_invitations IN SHARE MODE")
 
             """
             Explanation of the query below:
