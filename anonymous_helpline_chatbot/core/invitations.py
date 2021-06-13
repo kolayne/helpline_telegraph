@@ -102,7 +102,7 @@ class InvitationsController:
         Remove messages with invitations to a conversation with the client sent to operators
 
         :param client_chat_id: Messenger identifier of the client to remove invitations to conversation with
-        :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, had now been
+        :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, has now been
             removed), `False` otherwise
         """
         return self._clear_invitations_of_user(client_chat_id)
