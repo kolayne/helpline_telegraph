@@ -48,27 +48,27 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_expand_callback_data(call.data)
 
-    result = core.begin_conversation(d['client_id'], call.message.chat.id)
-
-    if result == 0:
-        local_client_id = core.get_local_id(d['client_id'])
-        local_operator_id = core.get_local_id(call.message.chat.id)
-        bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
-                                               "сообщение, и собеседник его увидит")
-        bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "
-                                         "и собеседник его увидит")
-        bot.answer_callback_query(call.id)
-    elif result == 1:
-        notify_admins(text="Consistency error: someone is trying to accept an invitation, where a client is operating!")
-        bot.send_message(call.message.chat.id, "У нас серьезные технические проблемы. Я уже уведомил разработчика")
-        bot.answer_callback_query(call.id)
-    elif result == 2:
-        bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
-    elif result == 3 or result == 4:
-        notify_admins(text="Consistency error: someone is trying to accept an invitation while being in a conversation "
-                           "already!")
-        bot.answer_callback_query(call.id, "Вы не можете принять приглашение, пока сами находитесь в беседе")
-    elif result == 5:
-        bot.answer_callback_query(call.id, "Похоже, это приглашение уже принял другой оператор")
-    else:
-        raise RuntimeError("`core.begin_conversation` returned an unexpected error code")
+    with core.begin_conversation_with_locking(d['client_id'], call.message.chat.id) as result:
+        if result == 0:
+            local_client_id = core.get_local_id(d['client_id'])
+            local_operator_id = core.get_local_id(call.message.chat.id)
+            bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
+                                                   "сообщение, и собеседник его увидит")
+            bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "
+                                             "и собеседник его увидит")
+            bot.answer_callback_query(call.id)
+        elif result == 1:
+            notify_admins(text="Consistency error: someone is trying to accept an invitation, where a client is "
+                               "operating!")
+            bot.send_message(call.message.chat.id, "У нас серьезные технические проблемы. Я уже уведомил разработчика")
+            bot.answer_callback_query(call.id)
+        elif result == 2:
+            bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
+        elif result == 3 or result == 4:
+            notify_admins(text="Consistency error: someone is trying to accept an invitation while being in a "
+                               "conversation already!")
+            bot.answer_callback_query(call.id, "Вы не можете принять приглашение, пока сами находитесь в беседе")
+        elif result == 5:
+            bot.answer_callback_query(call.id, "Похоже, это приглашение уже принял другой оператор")
+        else:
+            raise RuntimeError("`core.begin_conversation` returned an unexpected error code")

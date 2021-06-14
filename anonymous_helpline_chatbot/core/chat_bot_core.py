@@ -1,4 +1,5 @@
-from typing import Set, Any, Callable, Optional
+from contextlib import contextmanager
+from typing import Set, Any, Callable, Optional, Generator
 
 from .db_connector import DatabaseConnectionPool
 from .users import UsersController
@@ -36,46 +37,32 @@ class ChatBotCore:
         # (by calling `object.__getattribute__`):
         return super().__getattribute__(item)
 
-    def invite_to_client(self, client_chat_id: int) -> bool:
-        with self._conversations_controller.lock_conversations_and_requests_list():
-            client_chat_id, operator_chat_id = self.get_conversing(client_chat_id)
-            if operator_chat_id is None and client_chat_id is not None:  # Not in a conversation, but has requested
-                self._invitations_controller.invite_to_client(client_chat_id)
-                return True
-            else:
-                return False
+    @contextmanager
+    def request_conversation_with_locking(self, client_chat_id: int) -> Generator[bool, None, None]:
+        with self._conversations_controller.request_conversation_with_locking(client_chat_id) as res:
+            if res:
+                self.invite_to_client(client_chat_id)
+            yield res
 
-    def invite_for_operator(self, operator_chat_id: int) -> bool:
-        with self._conversations_controller.lock_conversations_and_requests_list():
-            _, another_operator_chat_id = self.get_conversing(operator_chat_id)
-            if another_operator_chat_id is None:  # Either free or has requested a conversation (but it's not accepted)
-                self._invitations_controller.invite_for_operator(operator_chat_id)
-                return True
-            else:
-                return False
+    @contextmanager
+    def begin_conversation_with_locking(self, client_chat_id: int, operator_chat_id: int) -> Generator[int, None, None]:
+        with self._conversations_controller.begin_conversation_with_locking(client_chat_id, operator_chat_id) as res:
+            if res == 0:
+                self.clear_invitations_to_client(client_chat_id)
+                self.clear_invitations_for_operator(operator_chat_id)
+            yield res
 
-    def request_conversation(self, client_chat_id: int) -> bool:
-        if self._conversations_controller.request_conversation(client_chat_id):
-            self.invite_to_client(client_chat_id)
-            return True
-        else:
-            return False
+    @contextmanager
+    def end_conversation_or_cancel_request_with_locking(self,
+                                                        client_chat_id: int) -> Generator[Optional[int], None, None]:
+        with self._conversations_controller.end_conversation_or_cancel_request_with_locking(client_chat_id) as \
+                operator_chat_id:
 
-    def begin_conversation(self, client_chat_id: int, operator_chat_id: int) -> int:
-        res = self._conversations_controller.begin_conversation(client_chat_id, operator_chat_id)
-        if res == 0:
-            # FIXME: thread-safety suffers here. And somewhere near too, probably
-            self.clear_invitations_to_client(client_chat_id)
-            self.clear_invitations_for_operator(operator_chat_id)
-        return res
-
-    def end_conversation_or_cancel_request(self, client_chat_id: int) -> Optional[int]:
-        operator_chat_id = self._conversations_controller.end_conversation_or_cancel_request(client_chat_id)
-        if operator_chat_id == -1:
-            self.clear_invitations_to_client(client_chat_id)
-        elif operator_chat_id is not None:
-            self.invite_for_operator(operator_chat_id)
-            # If this conversation's client is an operator, restore invitations for him, too
-            if self._users_controller.is_operator(operator_chat_id):
-                self.invite_for_operator(client_chat_id)
-        return operator_chat_id
+            if operator_chat_id == -1:
+                self.clear_invitations_to_client(client_chat_id)
+            elif operator_chat_id is not None:
+                self.invite_for_operator(operator_chat_id)
+                # If this conversation's client is an operator, restore invitations for him, too
+                if self._users_controller.is_operator(operator_chat_id):
+                    self.invite_for_operator(client_chat_id)
+            yield operator_chat_id

@@ -91,23 +91,30 @@ class ConversationsController:
         ```
 
         :param chat_id: Messenger identifier of either a client or an operator
-        :return: Yields the same `.get_conversing` would return
+        :return: Returns the same `.get_conversing` would return
         """
         with self._conn_pool.PrettyCursor() as cursor:
             # Unlike `get_conversing`, the "FOR SHARE" gives benefits here: the row (if it exists), which is selected in
             # `_get_conversing_for_share`, gets locked until the context is exited
             yield self._get_conversing_for_share(cursor, chat_id)
 
-    def request_conversation(self, client_chat_id: int) -> bool:
+    @contextmanager
+    def request_conversation_with_locking(self, client_chat_id: int) -> Generator[bool, None, None]:
         with self._conn_pool.PrettyCursor() as cursor:
+            # Note: this locking is only intended to provide locking outside of the function, it's not needed for the
+            # internal logic
+            cursor.execute("LOCK TABLE conversations IN SHARE MODE")
+
             cursor.execute("INSERT INTO conversations(client_chat_id, operator_chat_id) VALUES (%s, NULL) "
                            "ON CONFLICT (client_chat_id) DO NOTHING",
                            (client_chat_id,))
-            return cursor.rowcount > 0
+            yield cursor.rowcount > 0
 
-    def begin_conversation(self, client_chat_id: int, operator_chat_id: int) -> int:
+    @contextmanager
+    def begin_conversation_with_locking(self, client_chat_id: int, operator_chat_id: int) -> Generator[int, None, None]:
         """
-        Begins a conversation between a client and an operator
+        Context manager, which begins a conversation between a client and an operator and guarantees, that no other
+        conversations begin or end and no conversation requests are handled before the context is exited.
 
         :param client_chat_id: Telegram id of the client to start conversation with
         :param operator_chat_id: Telegram id of the operator to start conversation with
@@ -130,7 +137,8 @@ class ConversationsController:
             another_client_chat_id, another_operator_chat_id = self.get_conversing(client_chat_id)
             if another_operator_chat_id == client_chat_id:
                 # Error, client is operating
-                return 1
+                yield 1
+                return
 
             # Ensure operator is absolutely free
             another_client_chat_id, another_operator_chat_id = self.get_conversing(operator_chat_id)
@@ -138,13 +146,16 @@ class ConversationsController:
                 # Error, operator is busy with something. Now check, with what exactly
                 if another_operator_chat_id is None:
                     # Operator has requested a conversation
-                    return 2
+                    yield 2
+                    return
                 elif another_client_chat_id == operator_chat_id:
                     # Operator is a client in another conversation
-                    return 3
+                    yield 3
+                    return
                 else:
                     # Operator is an operator in another conversation
-                    return 4
+                    yield 4
+                    return
 
             # If the client is **not** waiting for a conversation, a new row will be inserted (might be a subject
             # for a change).
@@ -159,15 +170,18 @@ class ConversationsController:
 
             if cursor.rowcount > 0:
                 # Success!
-                return 0
+                yield 0
             else:
                 # The client is in a conversation already (another operator has accepted the invitation?)
-                return 5
+                yield 5
 
-    def end_conversation_or_cancel_request(self, client_chat_id: int) -> Optional[int]:
+    @contextmanager
+    def end_conversation_or_cancel_request_with_locking(self,
+                                                        client_chat_id: int) -> Generator[Optional[int], None, None]:
         """
         If there is a conversation between the client and an operator, cancel it. If the client has requested a
-        conversation, cancel the request.
+        conversation, cancel the request. It's guaranteed that no other conversations begin or end and no conversation
+        requests are handled before the manager's context is exited.
 
         Note that this function can only be called with a client id. Operator is unable to end a conversation in the
         current implementation.
@@ -177,10 +191,16 @@ class ConversationsController:
             conversation, `-1`. Otherwise `None`
         """
         with self._conn_pool.PrettyCursor() as cursor:
+            # Note: this locking is only intended to provide locking outside of the function, it's not needed for the
+            # internal logic
+            cursor.execute("LOCK TABLE conversations IN SHARE MODE")
+
             cursor.execute("DELETE FROM conversations WHERE client_chat_id = %s RETURNING operator_chat_id",
                            (client_chat_id,))
             if cursor.rowcount > 0:
-                return cursor.fetchone()[0] or -1
+                yield cursor.fetchone()[0] or -1
+            else:
+                yield None
 
     @contextmanager
     def get_conversations_requesters_with_locking(self) -> Generator[Iterable[int], None, None]:
