@@ -60,12 +60,13 @@ class InvitationsController:
             1. SELECT all the users, which are operators (see `WHERE users.is_operator` in the end of the query)
             2. If the client himself is an operator, he shouldn't receive a notification. Remove him from the
                 resulting set (`WHERE ... AND users.chat_id != <client_chat_id>`)
-            3. LEFT OUTER JOIN the selected users with conversations and forget users which are in conversations
+            3. LEFT OUTER JOIN the selected users with conversations (note the `ON` clause: the rows are considered
+                matching if the user is in a conversation in any role) and forget users which are in conversations
                 (`WHERE ... AND conversations.operator_chat_id IS NULL`)
-            4. An unusual LEFT OUTER JOIN: we join the remaining users with `sent_invitations`, but the join is on an
-                interesting condition: the user row matches an invitation row if the user is the invitation operator AND
-                the invitation client is the client we're currently processing. This way we get rid of other invitations
-                sent for this operator.
+            4. Another unusual LEFT OUTER JOIN: we join the remaining users with `sent_invitations`, but the join is on
+                an interesting condition: the user row matches an invitation row if the user is the invitation operator
+                AND the invitation client is the client we're currently processing. This way we get rid of other
+                invitations sent for this operator.
                 After that we only keep the operators which don't yet have an invitation sent to the client
                 (`WHERE ... AND sent_invitations.client_chat_id IS NULL`)
             
@@ -77,9 +78,13 @@ class InvitationsController:
             #  safely replaced with other classes of the same interface
             cursor.execute("SELECT users.chat_id "
                            "FROM users "
+
                            "   LEFT OUTER JOIN conversations ON users.chat_id = conversations.operator_chat_id "
+                           "                                    OR users.chat_id = conversations.client_chat_id "
+
                            "   LEFT OUTER JOIN sent_invitations ON users.chat_id = sent_invitations.operator_chat_id "
                            "                                       AND sent_invitations.client_chat_id = %s "
+
                            "WHERE users.is_operator "
                            "  AND users.chat_id != %s"
                            "  AND conversations.operator_chat_id IS NULL "
