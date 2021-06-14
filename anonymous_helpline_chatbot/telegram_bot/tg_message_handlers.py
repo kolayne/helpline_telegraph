@@ -21,7 +21,7 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['request_conversation'])
 @nonfalling_handler
 def request_conversation_handler(message: telebot.types.Message):
-    if core.invite_to_client(message.chat.id):
+    if core.request_conversation(message.chat.id):
         bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
                               "/end_conversation, чтобы отменить запрос")
     else:
@@ -31,7 +31,15 @@ def request_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
-    if operator_tg_id := core.end_conversation(message.chat.id):
+    operator_tg_id = core.end_conversation_or_cancel_request(message.chat.id)
+    if operator_tg_id is None:
+        # TODO: handle case when operator has sent the command (or just fix #40)
+        bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation, чтобы "
+                              "начать")
+    elif operator_tg_id == -1:
+        bot.reply_to(message, "Ожидание операторов отменено. Используйте /request_conversation, чтобы запросить "
+                              "помощь снова")
+    else:
         operator_local_id = core.get_local_id(operator_tg_id)
         client_local_id = core.get_local_id(message.chat.id)
 
@@ -50,18 +58,9 @@ def end_conversation_handler(message: telebot.types.Message):
         keyboard.add(telebot.types.InlineKeyboardButton("Не хочу оценивать",
                                                         callback_data=shorten_callback_data_and_jdump(d)))
 
-        core.end_conversation(message.chat.id)
         bot.reply_to(message, "Беседа с оператором прекратилась. Хотите оценить свое самочувствие после нее? "
                               "Вы остаетесь анонимным", reply_markup=keyboard)
         bot.send_message(operator_tg_id, f"Пользователь №{client_local_id} прекратил беседу")
-    else:
-        if core.clear_invitations_to_client(message.chat.id):
-            bot.reply_to(message, "Ожидание операторов отменено. Используйте /request_conversation, чтобы запросить "
-                                  "помощь снова")
-        else:
-            # TODO: handle case when operator has sent the command (or just fix #40)
-            bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation, чтобы "
-                                  "начать")
 
 
 @bot.message_handler(content_types=['text'])

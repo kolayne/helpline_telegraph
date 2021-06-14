@@ -47,31 +47,28 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_expand_callback_data(call.data)
-    # TODO: There are a private member access (`core._operators_invitations_messages`) and a race condition
-    #  (conversation can begin after the if statement) here. Both will be fixed with #37
-    # if call.message.chat.id in core._operators_invitations_messages.keys():
-    #     bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
-    #     return
-    # UPD: now we just silently drop the invitations for the current operator (if there are any). This is a temporary
-    # shitty replacement, which is to be fixed with #37
-    # Note: yes, clearing invitations _for client_, because we want to make sure that the operator (in the context of
-    # this conversation acceptation) is not a client in any other context
-    core.clear_invitations_to_client(call.message.chat.id)
 
-    conversation_began = core.begin_conversation(d['client_id'], call.message.chat.id)
+    result = core.begin_conversation(d['client_id'], call.message.chat.id)
 
-    bot.answer_callback_query(call.id)
-
-    # TODO: handle more possible cases of conversation acceptation fail, when `ConversationsController` is ready
-    if conversation_began:
-        core.clear_invitations_to_client(d['client_id'])
-
+    if result == 0:
         local_client_id = core.get_local_id(d['client_id'])
         local_operator_id = core.get_local_id(call.message.chat.id)
         bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
                                                "сообщение, и собеседник его увидит")
         bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "
                                          "и собеседник его увидит")
+        bot.answer_callback_query(call.id)
+    elif result == 1:
+        notify_admins(text="Consistency error: someone is trying to accept an invitation, where a client is operating!")
+        bot.send_message(call.message.chat.id, "У нас серьезные технические проблемы. Я уже уведомил разработчика")
+        bot.answer_callback_query(call.id)
+    elif result == 2:
+        bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
+    elif result == 3 or result == 4:
+        notify_admins(text="Consistency error: someone is trying to accept an invitation while being in a conversation "
+                           "already!")
+        bot.answer_callback_query(call.id, "Вы не можете принять приглашение, пока сами находитесь в беседе")
+    elif result == 5:
+        bot.answer_callback_query(call.id, "Похоже, это приглашение уже принял другой оператор")
     else:
-        bot.answer_callback_query(call.id, "Что-то пошло не так. Возможно, вы уже в беседе, или другой оператор принял "
-                                           "это приглашение")
+        raise RuntimeError("`core.begin_conversation` returned an unexpected error code")

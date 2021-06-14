@@ -1,8 +1,6 @@
 from contextlib import contextmanager
 from typing import Union, Tuple, Optional, Generator, Iterable
 
-import psycopg2.errors
-
 from .db_connector import DatabaseConnectionPool, cursor_type
 
 
@@ -110,49 +108,89 @@ class ConversationsController:
             # `_get_conversing_for_share`, gets locked until the context is exited
             yield self._get_conversing_for_share(cursor, chat_id)
 
-    def begin_conversation(self, client_chat_id: int, operator_chat_id: int) -> bool:
+    def request_conversation(self, client_chat_id: int) -> bool:
+        with self._conn_pool.PrettyCursor() as cursor:
+            cursor.execute("INSERT INTO conversations(client_chat_id, operator_chat_id) VALUES (%s, NULL) "
+                           "ON CONFLICT (client_chat_id) DO NOTHING",
+                           (client_chat_id,))
+            return cursor.rowcount > 0
+
+    def begin_conversation(self, client_chat_id: int, operator_chat_id: int) -> int:
         """
         Begins a conversation between a client and an operator
 
         :param client_chat_id: Telegram id of the client to start conversation with
         :param operator_chat_id: Telegram id of the operator to start conversation with
-        :return: `True` if the conversation was started successfully, `False` otherwise (<b>for example</b>, if either
-            the client or the operator is busy. Also if any `psycopg2.errors.IntegrityError` exception occurs)
+        :return: If the conversation began successfully, `0` is returned. If the conversation can't begin, because the
+            client is an operator in another conversation, `1` is returned. If the conversation can't begin, because the
+            operator has requested a conversation, `2` is returned. If the conversation can't begin, because the
+            operator is a client in another conversation, `3` is returned. If the conversation can't begin, because the
+            operator is an operator already in another conversation, `4` is returned. If the conversation can't begin,
+            because the client is in a conversation as a client already (another operator has already accepted the
+            invitation?), `5` is returned
         """
         with self._conn_pool.PrettyCursor() as cursor:
-            try:
-                # If the client is **not** waiting for a conversation, a new row will be inserted (might be a subject
-                # for a change).
-                # If the client **is** waiting for a conversation (i.e. `conversations.operator_chat_id IS NULL`), the
-                # operator is set (`UPDATE SET operator_chat_id` happens).
-                # If the client is in a conversation with an operator already, nothing happens (`UPDATE` updates 0 rows)
-                cursor.execute("INSERT INTO conversations(client_chat_id, operator_chat_id) VALUES (%s, %s) "
-                               "ON CONFLICT (client_chat_id) DO "
-                               "    UPDATE SET operator_chat_id = excluded.operator_chat_id "
-                               "           WHERE conversations.operator_chat_id IS NULL",
-                               (client_chat_id, operator_chat_id))
-            except psycopg2.errors.IntegrityError:  # Either this operator or this client is busy, or something else bad
-                return False
+            # Must lock the whole table, because I'm going to later rely on the fact that there is _no_
+            # conversation/request with `operator_chat_id` is a client, but it's only possible to lock an _existing_
+            # row, not the fact that a row doesn't exist
+            cursor.execute("LOCK TABLE conversations IN SHARE MODE")
+
+            # Ensure client is not operating (note: if client has requested a conversation, it's perfectly fine; if
+            # client is a client in another conversation, this will be naturally handled later)
+            another_client_chat_id, another_operator_chat_id = self.get_conversing(client_chat_id)
+            if another_operator_chat_id == client_chat_id:
+                # Error, client is operating
+                return 1
+
+            # Ensure operator is absolutely free
+            another_client_chat_id, another_operator_chat_id = self.get_conversing(operator_chat_id)
+            if another_client_chat_id is not None:
+                # Error, operator is busy with something. Now check, with what exactly
+                if another_operator_chat_id is None:
+                    # Operator has requested a conversation
+                    return 2
+                elif another_client_chat_id == operator_chat_id:
+                    # Operator is a client in another conversation
+                    return 3
+                else:
+                    # Operator is an operator in another conversation
+                    return 4
+
+            # If the client is **not** waiting for a conversation, a new row will be inserted (might be a subject
+            # for a change).
+            # If the client **is** waiting for a conversation (i.e. `conversations.operator_chat_id IS NULL`), the
+            # operator is set (`UPDATE SET operator_chat_id` happens).
+            # If the client is in a conversation with an operator already, nothing happens (`UPDATE` updates 0 rows)
+            cursor.execute("INSERT INTO conversations(client_chat_id, operator_chat_id) VALUES (%s, %s) "
+                           "ON CONFLICT (client_chat_id) DO "
+                           "    UPDATE SET operator_chat_id = excluded.operator_chat_id "
+                           "           WHERE conversations.operator_chat_id IS NULL",
+                           (client_chat_id, operator_chat_id))
+
+            if cursor.rowcount > 0:
+                # Success!
+                return 0
             else:
-                # If number of rows affected (`cursor.rowcount`) is zero, the client was in a conversation before,
-                # therefore we didn't start a conversation, so `False` should be returned
-                return cursor.rowcount > 0
+                # The client is in a conversation already (another operator has accepted the invitation?)
+                return 5
 
-    def end_conversation(self, client_chat_id: int) -> Optional[int]:
+    def end_conversation_or_cancel_request(self, client_chat_id: int) -> Optional[int]:
         """
-        End the conversation between the client and an operator if there is any
+        If there is a conversation between the client and an operator, cancel it. If the client has requested a
+        conversation, cancel the request.
 
-        Note that this function can only be called with a client id. Operator is unable to end a conversation in current
-        implementation.
+        Note that this function can only be called with a client id. Operator is unable to end a conversation in the
+        current implementation.
 
         :param client_chat_id: Messenger id of the client ending the conversation
-        :return: If the client was having a conversation, his operator's chat id. Otherwise `None`
+        :return: If the client was having a conversation, his operator's chat id. If client has _only requested_ a
+            conversation, `-1`. Otherwise `None`
         """
         with self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("DELETE FROM conversations WHERE client_chat_id = %s RETURNING operator_chat_id",
                            (client_chat_id,))
-            # Return value from cursor, or `(None,)[0]` if nothing was returned by the query
-            return (cursor.fetchone() or (None,))[0]
+            if cursor.rowcount > 0:
+                return cursor.fetchone()[0] or -1
 
     @contextmanager
     def get_conversations_requesters_with_locking(self) -> Generator[Iterable[int], None, None]:

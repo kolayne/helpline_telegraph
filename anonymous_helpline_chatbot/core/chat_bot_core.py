@@ -58,16 +58,28 @@ class ChatBotCore:
             else:
                 return False
 
-    def begin_conversation(self, client_chat_id: int, operator_chat_id: int) -> bool:
-        if self._conversations_controller.begin_conversation(client_chat_id, operator_chat_id):
-            self.clear_invitations_to_client(client_chat_id)
-            self.clear_invitations_for_operator(operator_chat_id)
+    def request_conversation(self, client_chat_id: int) -> bool:
+        if self._conversations_controller.request_conversation(client_chat_id):
+            self.invite_to_client(client_chat_id)
             return True
         else:
             return False
 
-    def end_conversation(self, client_chat_id: int) -> Optional[int]:
-        operator_chat_id = self._conversations_controller.end_conversation(client_chat_id)
-        if operator_chat_id is not None:
+    def begin_conversation(self, client_chat_id: int, operator_chat_id: int) -> int:
+        res = self._conversations_controller.begin_conversation(client_chat_id, operator_chat_id)
+        if res == 0:
+            # FIXME: thread-safety suffers here. And somewhere near too, probably
+            self.clear_invitations_to_client(client_chat_id)
+            self.clear_invitations_for_operator(operator_chat_id)
+        return res
+
+    def end_conversation_or_cancel_request(self, client_chat_id: int) -> Optional[int]:
+        operator_chat_id = self._conversations_controller.end_conversation_or_cancel_request(client_chat_id)
+        if operator_chat_id == -1:
+            self.clear_invitations_to_client(client_chat_id)
+        elif operator_chat_id is not None:
             self.invite_for_operator(operator_chat_id)
+            # If this conversation's client is an operator, restore invitations for him, too
+            if self._users_controller.is_operator(operator_chat_id):
+                self.invite_for_operator(client_chat_id)
         return operator_chat_id

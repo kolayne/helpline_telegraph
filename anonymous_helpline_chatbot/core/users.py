@@ -22,6 +22,11 @@ class UsersController:
             cursor.execute("SELECT local_id FROM users WHERE chat_id=%s", (chat_id,))
             return cursor.fetchone()[0]
 
+    def is_operator(self, chat_id: int) -> bool:
+        with self._conn_pool.PrettyCursor() as cursor:
+            cursor.execute("SELECT is_admin FROM users WHERE chat_id = %s", (chat_id,))
+            return cursor.fetchone()[0]
+
     def get_admins_ids(self) -> List[int]:
         with self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("SELECT chat_id FROM users WHERE is_admin")
