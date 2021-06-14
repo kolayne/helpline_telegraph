@@ -71,10 +71,13 @@ class ConversationsController:
             return self._get_conversing_for_share(cursor, chat_id)
 
     @contextmanager
-    def get_conversing_with_locking(self, chat_id: int) -> Generator[Conversing, None, None]:
+    def get_conversing_with_plocking(self, chat_id: int) -> Generator[Conversing, None, None]:
         """
         Just like `.get_conversing`, but is a context manager and the conversation, **if it exists**, is preserved until
         you exit the context.
+
+        "plocking" stands for partial locking, which means that not all the conversations, but only (not more than) one
+        conversation/request's state is locked.
 
         **WARNING**: this function **DOES NOT** lock a "not existing conversation": if the given user is not conversing
         at the moment when the context is entered, the conversation **can** begin, even if the context is not exited.
@@ -99,12 +102,8 @@ class ConversationsController:
             yield self._get_conversing_for_share(cursor, chat_id)
 
     @contextmanager
-    def request_conversation_with_locking(self, client_chat_id: int) -> Generator[bool, None, None]:
+    def request_conversation_with_plocking(self, client_chat_id: int) -> Generator[bool, None, None]:
         with self._conn_pool.PrettyCursor() as cursor:
-            # Note: this locking is only intended to provide locking outside of the function, it's not needed for the
-            # internal logic
-            cursor.execute("LOCK TABLE conversations IN SHARE MODE")
-
             cursor.execute("INSERT INTO conversations(client_chat_id, operator_chat_id) VALUES (%s, NULL) "
                            "ON CONFLICT (client_chat_id) DO NOTHING",
                            (client_chat_id,))
@@ -176,12 +175,18 @@ class ConversationsController:
                 yield 5
 
     @contextmanager
-    def end_conversation_or_cancel_request_with_locking(self,
-                                                        client_chat_id: int) -> Generator[Optional[int], None, None]:
+    def end_conversation_or_cancel_request_with_plocking(self,
+                                                         client_chat_id: int) -> Generator[Optional[int], None, None]:
         """
         If there is a conversation between the client and an operator, cancel it. If the client has requested a
-        conversation, cancel the request. It's guaranteed that no other conversations begin or end and no conversation
-        requests are handled before the manager's context is exited.
+        conversation, cancel the request. The actions performed in the context of the context manager are treated as
+        part of conversation ending process: it's guaranteed that other threads trying to query information about the
+        conversation/request will get the old data (i.e. conversation/request will still exist) until the context is
+        exited, and threads trying to somehow modify the conversation/request's state will be put on hold until the
+        context is exited.
+
+        "plocking" stands for partial locking, which means that not all the conversations, but only one
+        request/conversation's state is locked
 
         Note that this function can only be called with a client id. Operator is unable to end a conversation in the
         current implementation.
@@ -191,10 +196,6 @@ class ConversationsController:
             conversation, `-1`. Otherwise `None`
         """
         with self._conn_pool.PrettyCursor() as cursor:
-            # Note: this locking is only intended to provide locking outside of the function, it's not needed for the
-            # internal logic
-            cursor.execute("LOCK TABLE conversations IN SHARE MODE")
-
             cursor.execute("DELETE FROM conversations WHERE client_chat_id = %s RETURNING operator_chat_id",
                            (client_chat_id,))
             if cursor.rowcount > 0:
@@ -203,7 +204,7 @@ class ConversationsController:
                 yield None
 
     @contextmanager
-    def get_conversations_requesters_with_locking(self) -> Generator[Iterable[int], None, None]:
+    def get_conversations_requesters_with_plocking(self) -> Generator[Iterable[int], None, None]:
         with self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("SELECT client_chat_id FROM conversations WHERE operator_chat_id IS NULL FOR SHARE")
             # Be careful: not `yield from`, because we need to yield an iterable (because of `contextmanager`)

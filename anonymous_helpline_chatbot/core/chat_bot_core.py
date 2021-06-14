@@ -38,8 +38,8 @@ class ChatBotCore:
         return super().__getattribute__(item)
 
     @contextmanager
-    def request_conversation_with_locking(self, client_chat_id: int) -> Generator[bool, None, None]:
-        with self._conversations_controller.request_conversation_with_locking(client_chat_id) as res:
+    def request_conversation_with_plocking(self, client_chat_id: int) -> Generator[bool, None, None]:
+        with self._conversations_controller.request_conversation_with_plocking(client_chat_id) as res:
             if res:
                 self.invite_to_client(client_chat_id)
             yield res
@@ -53,9 +53,9 @@ class ChatBotCore:
             yield res
 
     @contextmanager
-    def end_conversation_or_cancel_request_with_locking(self,
-                                                        client_chat_id: int) -> Generator[Optional[int], None, None]:
-        with self._conversations_controller.end_conversation_or_cancel_request_with_locking(client_chat_id) as \
+    def end_conversation_or_cancel_request_with_plocking(self,
+                                                         client_chat_id: int) -> Generator[Optional[int], None, None]:
+        with self._conversations_controller.end_conversation_or_cancel_request_with_plocking(client_chat_id) as \
                 operator_chat_id:
 
             if operator_chat_id == -1:

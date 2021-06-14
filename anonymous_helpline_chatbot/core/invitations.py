@@ -91,7 +91,7 @@ class InvitationsController:
 
     def invite_for_operator(self, operator_chat_id: int) -> None:
         with self._conn_pool.PrettyCursor() as cursor,\
-                self.conversations_controller.get_conversations_requesters_with_locking() as conversations_requesters:
+                self.conversations_controller.get_conversations_requesters_with_plocking() as conversations_requesters:
 
             # Prevent any invitations from being sent or deleted by parallel transactions until this one completes,
             # because, for example, a parallel transaction might try to delete an invitation which we are going to send,

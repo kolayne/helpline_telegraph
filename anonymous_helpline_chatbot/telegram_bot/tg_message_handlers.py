@@ -21,7 +21,7 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['request_conversation'])
 @nonfalling_handler
 def request_conversation_handler(message: telebot.types.Message):
-    with core.request_conversation_with_locking(message.chat.id) as success:
+    with core.request_conversation_with_plocking(message.chat.id) as success:
         if success:
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
                                   "/end_conversation, чтобы отменить запрос")
@@ -32,7 +32,7 @@ def request_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['end_conversation'])
 @nonfalling_handler
 def end_conversation_handler(message: telebot.types.Message):
-    with core.end_conversation_or_cancel_request_with_locking(message.chat.id) as operator_tg_id:
+    with core.end_conversation_or_cancel_request_with_plocking(message.chat.id) as operator_tg_id:
         if operator_tg_id is None:
             # TODO: handle case when operator has sent the command (or just fix #40)
             bot.reply_to(message, "В данный момент вы ни с кем не беседуете. Используйте /request_conversation, чтобы "
@@ -67,7 +67,7 @@ def end_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
-    with core.get_conversing_with_locking(message.chat.id) as (client_tg_id, operator_tg_id):
+    with core.get_conversing_with_plocking(message.chat.id) as (client_tg_id, operator_tg_id):
         if client_tg_id is None:
             bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /request_conversation. Сейчас "
                                   "у вас нет собеседника")
