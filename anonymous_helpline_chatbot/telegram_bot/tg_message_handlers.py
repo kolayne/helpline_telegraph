@@ -26,6 +26,7 @@ def request_conversation_handler(message: telebot.types.Message):
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
                                   "/end_conversation, чтобы отменить запрос")
         else:
+            # TODO: separate cases when in a conversation and waiting for a conversation!
             bot.reply_to(message, "Вы уже в беседе. Используйте /end_conversation, чтобы выйти из нее")
 
 
@@ -71,6 +72,11 @@ def text_message_handler(message: telebot.types.Message):
         if client_tg_id is None:
             bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /request_conversation. Сейчас "
                                   "у вас нет собеседника")
+            return
+
+        if operator_tg_id is None:
+            bot.reply_to(message, "У вас пока нет собеседника. Подождите, пока оператор присоединится к беседе. "
+                                  "Используйте /end_conversation чтобы отменить ожидание оператора")
             return
 
         interlocutor_id = client_tg_id if message.chat.id == operator_tg_id else operator_tg_id

@@ -52,7 +52,10 @@ class ChatBotCore:
         with self._conversations_controller.begin_conversation_with_locking(client_chat_id, operator_chat_id) as res:
             if res == 0:
                 self._invitations_controller.clear_invitations_to_client(client_chat_id)
+                # Not clearing invitations to client `operator_chat_id` because there mustn't be any because `res == 0`
                 self._invitations_controller.clear_invitations_for_operator(operator_chat_id)
+                # In case user `client_chat_id` is an operator:
+                self._invitations_controller.clear_invitations_for_operator(client_chat_id)
             yield res
 
     @contextmanager
@@ -66,6 +69,6 @@ class ChatBotCore:
             elif operator_chat_id is not None:
                 self._invitations_controller.invite_for_operator(operator_chat_id)
                 # If this conversation's client is an operator, restore invitations for him, too
-                if self._users_controller.is_operator(operator_chat_id):
+                if self._users_controller.is_operator(client_chat_id):
                     self._invitations_controller.invite_for_operator(client_chat_id)
             yield operator_chat_id

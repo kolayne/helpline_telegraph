@@ -103,6 +103,7 @@ class ConversationsController:
 
     @contextmanager
     def request_conversation_with_plocking(self, client_chat_id: int) -> Generator[bool, None, None]:
+        # To the docs: warning: locking only happens if returned value is `True`
         with self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("INSERT INTO conversations(client_chat_id, operator_chat_id) VALUES (%s, NULL) "
                            "ON CONFLICT (client_chat_id) DO NOTHING",
