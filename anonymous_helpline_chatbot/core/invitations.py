@@ -45,7 +45,9 @@ class InvitationsController:
         :param client_chat_id: Messenger identifier of the user to invite operators to have conversation with
         """
         with self._conn_pool.PrettyCursor() as cursor:
-            # Prevent any invitations from being sent or deleted by parallel transactions until this one completes
+            # Prevent any invitations from being sent or deleted by parallel transactions until this one completes,
+            # because, for example, a parallel transaction might try to delete an invitation which we are going to send,
+            # but have not sent yet
             cursor.execute("LOCK TABLE sent_invitations IN SHARE MODE")
 
             """
@@ -69,6 +71,10 @@ class InvitationsController:
             
             That's it! Now we have the list of operators which should receive an invitation to the client.
             """
+            # FIXME: fuck, this query relies on tables `users`, `conversations`, and `sent_invitations`, while
+            #  `InvitationsController` should only rely on `sent_invitations`. Have to do something with it. Either
+            #  somehow improve the API of the three controllers, or document, that the controllers can't actually be
+            #  safely replaced with other classes of the same interface
             cursor.execute("SELECT users.chat_id "
                            "FROM users "
                            "   LEFT OUTER JOIN conversations ON users.chat_id = conversations.operator_chat_id "

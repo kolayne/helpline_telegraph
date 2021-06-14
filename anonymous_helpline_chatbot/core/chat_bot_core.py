@@ -7,10 +7,6 @@ from .invitations import InvitationsController
 
 
 class ChatBotCore:
-    # When working on #37, I'm going to "override" `begin_conversation`/`end_conversation` methods, so that
-    # `ChatBotCore` will do some additional work there. TODO: not forget to mention this ability of the class in its
-    #  docs when I'll be writing them (#33)
-
     def __init__(self, db_host: str, db_name: str, db_username: str, db_password: str,
                  send_invitation_callback: Callable[[int, int, str], int],
                  delete_invitation_callback: Callable[[int, int], Any]):

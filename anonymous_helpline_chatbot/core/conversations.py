@@ -34,7 +34,7 @@ class ConversationsController:
         """
         Get client and operator from a conversation with a user with the given identifier
 
-        Retrieves both telegram and local identifiers of both client and operator of the conversation, in which the
+        Retrieves messenger identifiers of both client and operator of the conversation, in which the
         given user takes part. This function can be used for understanding whether current user is a client or an
         operator in his conversation, retrieving information about his interlocutor, etc
 
