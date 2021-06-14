@@ -95,15 +95,6 @@ class InvitationsController:
             for client_chat_id in conversations_requesters:
                 self._invite_operator_to_client(cursor, operator_chat_id, client_chat_id)
 
-    def _clear_invitations_of_user(self, chat_id: int) -> bool:
-        with self._conn_pool.PrettyCursor() as cursor:
-            cursor.execute("DELETE FROM sent_invitations WHERE client_chat_id = %s OR operator_chat_id = %s "
-                           "       RETURNING operator_chat_id, invitation_message_id",
-                           (chat_id, chat_id))
-            for operator_chat_id, invitation_message_id in cursor.fetchall():
-                self.delete_invitation_callback(operator_chat_id, invitation_message_id)
-            return cursor.rowcount > 0
-
     def clear_invitations_to_client(self, client_chat_id: int) -> bool:
         """
         Remove messages with invitations to a conversation with the client sent to operators
@@ -112,7 +103,18 @@ class InvitationsController:
         :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, has now been
             removed), `False` otherwise
         """
-        return self._clear_invitations_of_user(client_chat_id)
+        with self._conn_pool.PrettyCursor() as cursor:
+            cursor.execute("DELETE FROM sent_invitations WHERE client_chat_id = %s "
+                           "RETURNING operator_chat_id, invitation_message_id",
+                           (client_chat_id,))
+            for operator_chat_id, invitation_message_id in cursor.fetchall():
+                self.delete_invitation_callback(operator_chat_id, invitation_message_id)
+            return cursor.rowcount > 0
 
     def clear_invitations_for_operator(self, operator_chat_id: int) -> None:
-        self._clear_invitations_of_user(operator_chat_id)
+        with self._conn_pool.PrettyCursor() as cursor:
+            cursor.execute("DELETE FROM sent_invitations WHERE operator_chat_id = %s RETURNING invitation_message_id",
+                           (operator_chat_id,))
+            for invitation_message_id, in cursor.fetchall():
+                self.delete_invitation_callback(operator_chat_id, invitation_message_id)
+            return cursor.rowcount > 0
