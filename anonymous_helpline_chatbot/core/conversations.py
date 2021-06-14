@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Union, Tuple, Optional, Generator
+from typing import Union, Tuple, Optional, Generator, Iterable
 
 import psycopg2.errors
 
@@ -153,3 +153,10 @@ class ConversationsController:
                            (client_chat_id,))
             # Return value from cursor, or `(None,)[0]` if nothing was returned by the query
             return (cursor.fetchone() or (None,))[0]
+
+    @contextmanager
+    def get_conversations_requesters_with_locking(self) -> Generator[Iterable[int], None, None]:
+        with self._conn_pool.PrettyCursor() as cursor:
+            cursor.execute("SELECT client_chat_id FROM conversations WHERE operator_chat_id IS NULL FOR SHARE")
+            # Be careful: not `yield from`, because we need to yield an iterable (because of `contextmanager`)
+            yield (i[0] for i in cursor.fetchall())

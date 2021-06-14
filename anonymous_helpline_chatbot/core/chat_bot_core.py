@@ -17,7 +17,8 @@ class ChatBotCore:
         conn_pool = DatabaseConnectionPool(db_host, db_name, db_username, db_password)
         self._users_controller = UsersController(conn_pool)
         self._conversations_controller = ConversationsController(conn_pool)
-        self._invitations_controller = InvitationsController(conn_pool, self._users_controller,
+        self._invitations_controller = InvitationsController(conn_pool,
+                                                             self._users_controller, self._conversations_controller,
                                                              send_invitation_callback, delete_invitation_callback)
 
     def __dir__(self) -> Set[str]:
