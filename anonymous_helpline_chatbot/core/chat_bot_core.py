@@ -42,8 +42,8 @@ class ChatBotCore:
 
     def invite_to_client(self, client_chat_id: int) -> bool:
         with self._conversations_controller.lock_conversations_and_requests_list():
-            (_, _), (_, operator_chat_id) = self.get_conversing(client_chat_id)
-            if operator_chat_id is None:  # Not in a conversation
+            client_chat_id, operator_chat_id = self.get_conversing(client_chat_id)
+            if operator_chat_id is None and client_chat_id is not None:  # Not in a conversation, but has requested
                 self._invitations_controller.invite_to_client(client_chat_id)
                 return True
             else:
@@ -51,8 +51,8 @@ class ChatBotCore:
 
     def invite_for_operator(self, operator_chat_id: int) -> bool:
         with self._conversations_controller.lock_conversations_and_requests_list():
-            (client_chat_id, _), (_, _) = self.get_conversing(operator_chat_id)
-            if client_chat_id is None:  # Not in a conversation
+            _, another_operator_chat_id = self.get_conversing(operator_chat_id)
+            if another_operator_chat_id is None:  # Either free or has requested a conversation (but it's not accepted)
                 self._invitations_controller.invite_for_operator(operator_chat_id)
                 return True
             else:

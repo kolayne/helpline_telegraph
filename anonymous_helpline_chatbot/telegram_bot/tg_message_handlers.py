@@ -66,7 +66,7 @@ def end_conversation_handler(message: telebot.types.Message):
 @bot.message_handler(content_types=['text'])
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
-    with core.get_conversing_with_locking(message.chat.id) as ((client_tg_id, _), (operator_tg_id, _)):
+    with core.get_conversing_with_locking(message.chat.id) as (client_tg_id, operator_tg_id):
         if client_tg_id is None:
             bot.reply_to(message, "Чтобы начать общаться с оператором, нужно написать /request_conversation. Сейчас "
                                   "у вас нет собеседника")
