@@ -24,12 +24,15 @@ class ChatBotCore:
         return set().union(
             super().__dir__(),  # Attributes/methods we actually have
             dir(self._users_controller),
-            dir(self._conversations_controller),
-            dir(self._invitations_controller)
+            dir(self._conversations_controller)
+            # Not `self._invitations_controller`, to not confuse users of `ChatBotCore` with invitation functions,
+            # which they actually shouldn't use
         )
 
     def __getattr__(self, item):
-        for controller in (self._users_controller, self._conversations_controller, self._invitations_controller):
+        # Not searching in `self._invitations_controller`, to not confuse users of `ChatBotCore` with invitation
+        # functions, which they actually shouldn't use
+        for controller in (self._users_controller, self._conversations_controller):
             if hasattr(controller, item):
                 return controller.__getattribute__(item)
 
@@ -41,15 +44,15 @@ class ChatBotCore:
     def request_conversation_with_plocking(self, client_chat_id: int) -> Generator[bool, None, None]:
         with self._conversations_controller.request_conversation_with_plocking(client_chat_id) as res:
             if res:
-                self.invite_to_client(client_chat_id)
+                self._invitations_controller.invite_to_client(client_chat_id)
             yield res
 
     @contextmanager
     def begin_conversation_with_locking(self, client_chat_id: int, operator_chat_id: int) -> Generator[int, None, None]:
         with self._conversations_controller.begin_conversation_with_locking(client_chat_id, operator_chat_id) as res:
             if res == 0:
-                self.clear_invitations_to_client(client_chat_id)
-                self.clear_invitations_for_operator(operator_chat_id)
+                self._invitations_controller.clear_invitations_to_client(client_chat_id)
+                self._invitations_controller.clear_invitations_for_operator(operator_chat_id)
             yield res
 
     @contextmanager
@@ -59,10 +62,10 @@ class ChatBotCore:
                 operator_chat_id:
 
             if operator_chat_id == -1:
-                self.clear_invitations_to_client(client_chat_id)
+                self._invitations_controller.clear_invitations_to_client(client_chat_id)
             elif operator_chat_id is not None:
-                self.invite_for_operator(operator_chat_id)
+                self._invitations_controller.invite_for_operator(operator_chat_id)
                 # If this conversation's client is an operator, restore invitations for him, too
                 if self._users_controller.is_operator(operator_chat_id):
-                    self.invite_for_operator(client_chat_id)
+                    self._invitations_controller.invite_for_operator(client_chat_id)
             yield operator_chat_id
