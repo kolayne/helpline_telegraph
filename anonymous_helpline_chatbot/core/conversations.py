@@ -13,7 +13,7 @@ class ConversationsController:
         self._conn_pool = database_connection_pool
 
     @contextmanager
-    def lock_conversations_list(self) -> Generator[None, None, None]:
+    def lock_conversations_and_requests_list(self) -> Generator[None, None, None]:
         with self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("LOCK TABLE conversations IN SHARE MODE")
             yield

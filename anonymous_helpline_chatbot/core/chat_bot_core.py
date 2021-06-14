@@ -41,7 +41,7 @@ class ChatBotCore:
         return super().__getattribute__(item)
 
     def invite_to_client(self, client_chat_id: int) -> bool:
-        with self._conversations_controller.lock_conversations_list():
+        with self._conversations_controller.lock_conversations_and_requests_list():
             (_, _), (_, operator_chat_id) = self.get_conversing(client_chat_id)
             if operator_chat_id is None:  # Not in a conversation
                 self._invitations_controller.invite_to_client(client_chat_id)
@@ -50,7 +50,7 @@ class ChatBotCore:
                 return False
 
     def invite_for_operator(self, operator_chat_id: int) -> bool:
-        with self._conversations_controller.lock_conversations_list():
+        with self._conversations_controller.lock_conversations_and_requests_list():
             (client_chat_id, _), (_, _) = self.get_conversing(operator_chat_id)
             if client_chat_id is None:  # Not in a conversation
                 self._invitations_controller.invite_for_operator(operator_chat_id)
