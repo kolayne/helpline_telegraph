@@ -17,7 +17,8 @@ class ConversationsController:
             cursor.execute("LOCK TABLE conversations IN SHARE MODE")
             yield
 
-    def _get_conversing_for_share(self, cursor: cursor_type, chat_id: int) -> Conversing:
+    @staticmethod
+    def _get_conversing_for_share(cursor: cursor_type, chat_id: int) -> Conversing:
         """
         Just like `.get_conversing` (see below), but accepts `cursor`, which is a database cursor, and retrieves
         the ids using that cursor with the `SELECT FOR SHARE` query. Thus, if the conversation exists, it is guaranteed
@@ -58,7 +59,21 @@ class ConversationsController:
             _, operator_chat_id = conversations_controller.get_conversing(some_user_chat_id)
             if operator_chat_id is None:
                 print("User is not in a conversation")
+                # Do something, relying on this fact
+            else:
+                print("User is in a conversation")
+                # Do something, relying on this fact
+
+            # If there was only the `else` part, and we didn't want to fixate the "not existing" state of a
+            # conversation, it would be better to use `conversations_controller.get_conversing_with_plocking` (see
+            # below)
         ```
+
+        Also note that if you only need to do something if a conversation/request **does** exist for the given user,
+        but you don't need to rely on the fact, that a conversation **doesn't** exist, it's recommended to use
+        the `.get_conversing_with_plocking` method instead of this one, because this one locks all the conversations
+        entirely, which leads to all the conversations requests, beginnings and finishes freeze and wait for this to
+        complete. Partially locking functions work differently (see the appropriate documentation for details)
 
         :param chat_id: Messenger identifier of either a client or an operator
         :return: If the given user is in a conversation, `(client_chat_id, operator_chat_id)` is returned. Otherwise, if
@@ -82,6 +97,8 @@ class ConversationsController:
         **WARNING**: this function **DOES NOT** lock a "not existing conversation": if the given user is not conversing
         at the moment when the context is entered, the conversation **can** begin, even if the context is not exited.
         Only an existing conversation gets locked.
+        If you want a non-existing conversation to be locked in that state, use the `get_conversing` method together
+        with `lock_conversations_and_requests_list` instead
 
         Example usage:
         ```

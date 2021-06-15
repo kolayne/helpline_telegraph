@@ -52,7 +52,7 @@ class InvitationsController:
 
             """
             Explanation of the query below:
-            
+
             This query selects chat ids of all the operators which should receive an invitation to the given client
             (i.e. they are currently not in conversations, and they haven't yet been sent an invitation to the client).
             We select them with the two joins in the following way (of course, PostgreSQL doesn't do exactly what I say
@@ -69,7 +69,7 @@ class InvitationsController:
                 invitations sent for this operator.
                 After that we only keep the operators which don't yet have an invitation sent to the client
                 (`WHERE ... AND sent_invitations.client_chat_id IS NULL`)
-            
+
             That's it! Now we have the list of operators which should receive an invitation to the client.
             """
             # FIXME: fuck, this query relies on tables `users`, `conversations`, and `sent_invitations`, while
