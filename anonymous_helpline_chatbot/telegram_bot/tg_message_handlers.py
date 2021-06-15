@@ -21,13 +21,16 @@ def start_help_handler(message: telebot.types.Message):
 @bot.message_handler(commands=['request_conversation'])
 @nonfalling_handler
 def request_conversation_handler(message: telebot.types.Message):
-    with core.request_conversation_with_plocking(message.chat.id) as success:
-        if success:
+    with core.request_conversation_with_locking(message.chat.id) as res:
+        if res == 0:
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
                                   "/end_conversation, чтобы отменить запрос")
-        else:
-            # TODO: separate cases when in a conversation and waiting for a conversation!
+        elif res == 1:
+            bot.reply_to(message, "Вы уже ожидаете оператора. Используйте /end_conversation, чтобы отменить")
+        elif res == 2:
             bot.reply_to(message, "Вы уже в беседе. Используйте /end_conversation, чтобы выйти из нее")
+        else:
+            raise RuntimeError("Unexpected value returned by `core.request_conversation_with_locking")
 
 
 @bot.message_handler(commands=['end_conversation'])

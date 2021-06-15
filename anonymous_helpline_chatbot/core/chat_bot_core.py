@@ -41,9 +41,9 @@ class ChatBotCore:
         return super().__getattribute__(item)
 
     @contextmanager
-    def request_conversation_with_plocking(self, client_chat_id: int) -> Generator[bool, None, None]:
-        with self._conversations_controller.request_conversation_with_plocking(client_chat_id) as res:
-            if res:
+    def request_conversation_with_locking(self, client_chat_id: int) -> Generator[int, None, None]:
+        with self._conversations_controller.request_conversation_with_locking(client_chat_id) as res:
+            if res == 0:
                 self._invitations_controller.invite_to_client(client_chat_id)
             yield res
 
