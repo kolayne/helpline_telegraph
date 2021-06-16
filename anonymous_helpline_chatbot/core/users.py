@@ -13,7 +13,7 @@ class UsersController:
 
     def get_local_id(self, chat_id: int) -> int:
         """
-        Retrieves the local id of the user with the known telegram id
+        Retrieves the local id of the user with the known messenger id
 
         :param chat_id: Messenger identifier of the user
         :return: Local identifier of the user with the given id

@@ -30,7 +30,7 @@ def request_conversation_handler(message: telebot.types.Message):
         elif res == 2:
             bot.reply_to(message, "Вы уже в беседе. Используйте /end_conversation, чтобы выйти из нее")
         else:
-            raise RuntimeError("Unexpected value returned by `core.request_conversation_with_locking")
+            raise RuntimeError("`core.request_conversation_with_locking` has returned an unexpected value")
 
 
 @bot.message_handler(commands=['end_conversation'])

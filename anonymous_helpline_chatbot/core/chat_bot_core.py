@@ -30,7 +30,7 @@ class ChatBotCore:
         )
 
     def __getattr__(self, item):
-        # Not searching in `self._invitations_controller`, to not confuse users of `ChatBotCore` with invitation
+        # Not searching in `self._invitations_controller` to not confuse users of `ChatBotCore` with invitation
         # functions, which they actually shouldn't use
         for controller in (self._users_controller, self._conversations_controller):
             if hasattr(controller, item):
@@ -68,7 +68,9 @@ class ChatBotCore:
                 self._invitations_controller.clear_invitations_to_client(client_chat_id)
             elif operator_chat_id is not None:
                 self._invitations_controller.invite_for_operator(operator_chat_id)
-                # If this conversation's client is an operator, restore invitations for him, too
+                # If this conversation's client is an operator, restore invitations for him, too.
+                # Note: not trying to synchronize with the operators list, because it is expected to not change
+                # while the application is running.
                 if self._users_controller.is_operator(client_chat_id):
                     self._invitations_controller.invite_for_operator(client_chat_id)
             yield operator_chat_id

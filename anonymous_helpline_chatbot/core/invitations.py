@@ -15,12 +15,6 @@ class InvitationsController:
         self.users_controller = users_controller
         self.conversations_controller = conversations_controller
 
-        # Whenever a client requests a conversation, all the <b>free</b> operators get a message which invites them to
-        # start chatting with that client. Whenever an operator accepts the invitation, all the messages which invite to
-        # the conversation with that client are deleted, and the conversation begins between the client and the operator
-        # who accepted the invitation.
-        # However, the above behavior will be altered soon
-
         self.send_invitation_callback = send_invitation_callback
         self.delete_invitation_callback = delete_invitation_callback
 
@@ -46,8 +40,8 @@ class InvitationsController:
         """
         with self._conn_pool.PrettyCursor() as cursor:
             # Prevent any invitations from being sent or deleted by parallel transactions until this one completes,
-            # because, for example, a parallel transaction might try to delete an invitation which we are going to send,
-            # but have not sent yet
+            # because, for example, a parallel transaction might try to clear invitations for a user, for which we **are
+            # about** to send an invitation to, but have not sent yet
             cursor.execute("LOCK TABLE sent_invitations IN SHARE MODE")
 
             """
@@ -56,17 +50,18 @@ class InvitationsController:
             This query selects chat ids of all the operators which should receive an invitation to the given client
             (i.e. they are currently not in conversations, and they haven't yet been sent an invitation to the client).
             We select them with the two joins in the following way (of course, PostgreSQL doesn't do exactly what I say
-            here, it performs optimizations. But the result is exactly as if it was doing the following):
+            here, it performs optimizations. But the result is exactly as if it would be if pgsql was
+            doing the following):
             1. SELECT all the users, which are operators (see `WHERE users.is_operator` in the end of the query)
             2. If the client himself is an operator, he shouldn't receive a notification. Remove him from the
                 resulting set (`WHERE ... AND users.chat_id != <client_chat_id>`)
-            3. LEFT OUTER JOIN the selected users with conversations (note the `ON` clause: the rows are considered
+            3. LEFT OUTER JOIN the selected users with `conversations` (note the `ON` clause: the rows are considered
                 matching if the user is in a conversation in any role) and forget users which are in conversations
                 (`WHERE ... AND conversations.operator_chat_id IS NULL`)
-            4. Another unusual LEFT OUTER JOIN: we join the remaining users with `sent_invitations`, but the join is on
-                an interesting condition: the user row matches an invitation row if the user is the invitation operator
-                AND the invitation client is the client we're currently processing. This way we get rid of other
-                invitations sent for this operator.
+            4. Another unusual LEFT OUTER JOIN: we join the remaining users with `sent_invitations`, where a user row
+                is considered to be matching an invitation row if the user is the operator, to which the invitation
+                was sent AND the invitation client is the client we're currently processing. This way we get rid of
+                other invitations sent for this operator.
                 After that we only keep the operators which don't yet have an invitation sent to the client
                 (`WHERE ... AND sent_invitations.client_chat_id IS NULL`)
 
@@ -95,12 +90,12 @@ class InvitationsController:
                 self._invite_operator_to_client(cursor, operator_chat_id, client_chat_id)
 
     def invite_for_operator(self, operator_chat_id: int) -> None:
-        with self._conn_pool.PrettyCursor() as cursor,\
+        with self._conn_pool.PrettyCursor() as cursor, \
                 self.conversations_controller.get_conversations_requesters_with_plocking() as conversations_requesters:
 
             # Prevent any invitations from being sent or deleted by parallel transactions until this one completes,
-            # because, for example, a parallel transaction might try to delete an invitation which we are going to send,
-            # but have not sent yet
+            # because, for example, a parallel transaction might try to clear invitations for a user, for which we **are
+            # about** to send an invitation to, but have not sent yet
             cursor.execute("LOCK TABLE sent_invitations IN SHARE MODE")
 
             for client_chat_id in conversations_requesters:
@@ -108,7 +103,7 @@ class InvitationsController:
 
     def clear_invitations_to_client(self, client_chat_id: int) -> bool:
         """
-        Remove messages with invitations to a conversation with the client sent to operators
+        Remove messages, inviting to a conversation with the client
 
         :param client_chat_id: Messenger identifier of the client to remove invitations to conversation with
         :return: `True` if there was at least one invitation sent earlier for this client (and, therefore, has now been
