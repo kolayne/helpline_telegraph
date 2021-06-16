@@ -91,8 +91,9 @@ def text_message_handler(message: telebot.types.Message):
             with core._users_controller._conn_pool.PrettyCursor() as cursor:
                 # Note: it doesn't really matter who was the actual sender and receiver, because there were both
                 # versions inserted to the database
-                cursor.execute("SELECT sender_message_id FROM reflected_messages "
-                               "WHERE sender_chat_id = %s AND receiver_chat_id = %s AND receiver_message_id = %s",
+                cursor.execute("SELECT interlocutor1_message_id FROM reflected_messages "
+                               "WHERE interlocutor1_chat_id = %s AND interlocutor2_chat_id = %s AND "
+                               "      interlocutor2_message_id = %s",
                                (interlocutor_id, message.chat.id, message.reply_to_message.message_id))
                 try:
                     reply_to, = cursor.fetchone()
@@ -116,8 +117,9 @@ def text_message_handler(message: telebot.types.Message):
             # Storing this message in two ways: both as if it was send by the client and by the operator. This way, we
             # won't need to check, which way it actually was, when later processing a reply to a message (user can reply
             # both to his own message and to his interlocutor's one)
-            query = "INSERT INTO reflected_messages(sender_chat_id, sender_message_id, receiver_chat_id, " \
-                    "receiver_message_id) VALUES (%s, %s, %s, %s)"
+            query = "INSERT INTO reflected_messages(interlocutor1_chat_id, interlocutor1_message_id, " \
+                    "interlocutor2_chat_id, interlocutor2_message_id) " \
+                    "VALUES (%s, %s, %s, %s)"
             cursor.execute(query, (message.chat.id, message.message_id, sent.chat.id, sent.message_id))
             cursor.execute(query, (sent.chat.id, sent.message_id, message.chat.id, message.message_id))
 
