@@ -35,7 +35,7 @@ class InvitationsController:
             # an invitation leak has occurred
             cursor.execute("INSERT INTO sent_invitations(operator_chat_id, client_chat_id, invitation_message_id) "
                            "VALUES (%s, %s, %s) "
-                           "ON CONFLICT ((operator_chat_id, client_chat_id)) DO NOTHING",
+                           "ON CONFLICT (operator_chat_id, client_chat_id) DO NOTHING",
                            (operator_chat_id, client_chat_id, sent_message_id))
             if cursor.rowcount == 0:
                 print("Warning: an invitation leak has occurred. Dropping one of the invitation messages", file=stderr)
