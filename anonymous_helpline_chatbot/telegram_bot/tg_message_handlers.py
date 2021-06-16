@@ -14,7 +14,7 @@ class AnyContentType:
 @bot.message_handler(commands=['start', 'help'])
 @nonfalling_handler
 def start_help_handler(message: telebot.types.Message):
-    bot.reply_to(message, "Привет. /request_conversation, чтобы начать беседу, /end_conversation чтобы завершить")
+    bot.reply_to(message, "Привет. /request_conversation, чтобы начать беседу, /end_conversation - чтобы завершить")
     core.add_user(message.chat.id)
 
 
@@ -26,7 +26,8 @@ def request_conversation_handler(message: telebot.types.Message):
             bot.reply_to(message, "Операторы получили запрос на присоединение. Ждем оператора...\nИспользуйте "
                                   "/end_conversation, чтобы отменить запрос")
         elif res == 1:
-            bot.reply_to(message, "Вы уже ожидаете оператора. Используйте /end_conversation, чтобы отменить")
+            bot.reply_to(message, "Вы уже ожидаете оператора. Используйте /end_conversation, чтобы отказаться от "
+                                  "беседы")
         elif res == 2:
             bot.reply_to(message, "Вы уже в беседе. Используйте /end_conversation, чтобы выйти из нее")
         else:

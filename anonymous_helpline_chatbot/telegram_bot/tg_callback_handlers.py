@@ -59,9 +59,8 @@ def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
             bot.answer_callback_query(call.id)
         elif result == 1:
             notify_admins(text="Consistency error: someone is trying to accept an invitation, where a client is "
-                               "operating!")
-            bot.send_message(call.message.chat.id, "У нас серьезные технические проблемы. Я уже уведомил разработчика")
-            bot.answer_callback_query(call.id)
+                               "operating!\nBut probably the client just has very quick fingers...")
+            bot.answer_callback_query(call.id, "Похоже, это приглашение устарело. Попробуйте еще раз")
         elif result == 2:
             bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
         elif result == 3 or result == 4:
