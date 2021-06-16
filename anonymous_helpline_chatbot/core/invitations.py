@@ -1,3 +1,4 @@
+from sys import stderr
 from typing import Callable, Any
 
 from .db_connector import DatabaseConnectionPool, cursor_type
@@ -27,9 +28,18 @@ class InvitationsController:
 
         # Unless message sending failed for some internal front-end reason, store invitation in the database
         if sent_message_id is not None:
+            # Note: not using `try ... except psycopg2.errors.UniqueViolation ...`, but instead
+            # `... ON CONFLICT ... DO NOTHING ... if cursor.rowcount == 0 ...`, because an error occurring in the query
+            # would cause the whole transaction to be aborted. But the transaction has been started outside of this
+            # function, and some important changes might have been done within it, and they need to be committed even if
+            # an invitation leak has occurred
             cursor.execute("INSERT INTO sent_invitations(operator_chat_id, client_chat_id, invitation_message_id) "
-                           "VALUES (%s, %s, %s)",
+                           "VALUES (%s, %s, %s) "
+                           "ON CONFLICT ((operator_chat_id, client_chat_id)) DO NOTHING",
                            (operator_chat_id, client_chat_id, sent_message_id))
+            if cursor.rowcount == 0:
+                print("Warning: an invitation leak has occurred. Dropping one of the invitation messages", file=stderr)
+                self.delete_invitation_callback(operator_chat_id, sent_message_id)
 
     def invite_to_client(self, client_chat_id: int) -> None:
         """
