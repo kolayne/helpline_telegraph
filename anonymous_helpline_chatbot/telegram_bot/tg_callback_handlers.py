@@ -31,7 +31,7 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
         conversation_end_moment = datetime_from_local_epoch_secs(d['conversation_end_moment'])
 
         notification_text = f"Клиент {client_local} чувствует себя хуже после беседы с оператором " \
-                            f"№[{operator_local}](tg://user?id={operator_tg}), которая завершилась в " \
+                            f"[{operator_local}](tg://user?id={operator_tg}), которая завершилась в " \
                             f"{conversation_end_moment}"
         notify_admins(text=notification_text, parse_mode="Markdown")
 
@@ -47,23 +47,27 @@ def conversation_rate_callback_query(call: telebot.types.CallbackQuery):
 @nonfalling_handler
 def conversation_acceptation_callback_query(call: telebot.types.CallbackQuery):
     d = jload_and_expand_callback_data(call.data)
-    # TODO: There are a private member access (`core._operators_invitations_messages`) and a race condition
-    #  (conversation can begin after the if statement) here. Both will be fixed with #37
-    if call.message.chat.id in core._operators_invitations_messages.keys():
-        bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
-        return
 
-    conversation_began = core.begin_conversation(d['client_id'], call.message.chat.id)
-
-    if conversation_began:
-        core.clear_invitation_messages(d['client_id'])
-
-        (_, local_client_id), (_, local_operator_id) = core.get_conversing(call.message.chat.id)
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
-                                               "сообщение, и собеседник его увидит")
-        bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "
-                                         "и собеседник его увидит")
-    else:
-        bot.answer_callback_query(call.id, "Что-то пошло не так. Возможно, вы уже в беседе, или другой оператор принял "
-                                           "это приглашение")
+    with core.begin_conversation_with_locking(d['client_id'], call.message.chat.id) as result:
+        if result == 0:
+            local_client_id = core.get_local_id(d['client_id'])
+            local_operator_id = core.get_local_id(call.message.chat.id)
+            bot.send_message(call.message.chat.id, f"Началась беседа с клиентом №{local_client_id}. Отправьте "
+                                                   "сообщение, и собеседник его увидит")
+            bot.send_message(d['client_id'], f"Началась беседа с оператором №{local_operator_id}. Отправьте сообщение, "
+                                             "и собеседник его увидит")
+            bot.answer_callback_query(call.id)
+        elif result == 1:
+            notify_admins(text="Consistency error: someone is trying to accept an invitation, where a client is "
+                               "operating!\nBut probably the client just has very quick fingers...")
+            bot.answer_callback_query(call.id, "Похоже, это приглашение устарело. Попробуйте еще раз")
+        elif result == 2:
+            bot.answer_callback_query(call.id, "Невозможно начать беседу, пока вы ожидаете оператора")
+        elif result == 3 or result == 4:
+            notify_admins(text="Consistency error: someone is trying to accept an invitation while being in a "
+                               "conversation already!")
+            bot.answer_callback_query(call.id, "Вы не можете принять приглашение, пока сами находитесь в беседе")
+        elif result == 5:
+            bot.answer_callback_query(call.id, "Похоже, это приглашение уже принял другой оператор")
+        else:
+            raise RuntimeError("`core.begin_conversation` returned an unexpected error code")
