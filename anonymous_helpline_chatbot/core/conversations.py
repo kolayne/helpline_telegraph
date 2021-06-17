@@ -214,36 +214,28 @@ class ConversationsController:
                 yield 5
 
     @contextmanager
-    def end_conversation_or_cancel_request_with_plocking(self,
-                                                         client_chat_id: int) -> Generator[Optional[int], None, None]:
+    def end_conversation_or_cancel_request_with_plocking(self, chat_id: int) -> Generator[Conversing, None, None]:
         """
-        Context manager, which finishes a conversation where the user `client_chat_id` is a client (if such conversation
-        exists),
-        or cancels the conversation request sent by the user (if the request exists). Actions performed in the context of this
-        context manager are treated as a part of the conversation ending (request cancellation) process in the sense that
-        it's guaranteed that other threads trying to query information about the conversation/request will keep getting the
-        old data (as if conversation/request would still exist) until the context is exited, and threads trying to anyhow
-        modify the conversation/request's state will be paused until the context is exited.
+        Context manager, which finishes a conversation where the user `chat_id` takes part (if such conversation
+        exists), or cancels the conversation request sent by the user (if the request exists). Actions performed in the
+        context of this context manager are treated as a part of the conversation ending (request cancellation) process
+        in the sense that it's guaranteed that other threads trying to query information about the conversation/request
+        will keep getting the old data (as if conversation/request would still exist) until the context is exited, and
+        threads trying to anyhow modify the conversation/request's state will be paused until the context is exited.
         Technically, this is achieved by the `DELETE` query being performed _before_ the context is entered, but the
         transaction being committed committed _after_ the context is exited.
 
         "plocking" stands for partial locking, which means that not all the conversations, but (in this case) only
         one conversation/request's state is locked (if it exists).
 
-        Note that this function can only be called with a client id. Operator is unable to end a conversation in the
-        current implementation.
-
-        :param client_chat_id: Messenger id of the client ending the conversation
-        :return: If the client was having a conversation, his operator's chat id. If client has _only requested_ a
-            conversation, `-1`. Otherwise `None`
+        :param chat_id: Messenger id of the user ending the conversation
+        :return: The same thing `.get_conversing` would return for this conversation before it's ended
         """
         with self._conn_pool.PrettyCursor() as cursor:
-            cursor.execute("DELETE FROM conversations WHERE client_chat_id = %s RETURNING operator_chat_id",
-                           (client_chat_id,))
-            if cursor.rowcount > 0:
-                yield cursor.fetchone()[0] or -1
-            else:
-                yield None
+            cursor.execute("DELETE FROM conversations WHERE client_chat_id = %s OR operator_chat_id = %s "
+                           "RETURNING client_chat_id, operator_chat_id",
+                           (chat_id, chat_id))
+            yield cursor.fetchone() or (None, None)
 
     @contextmanager
     def get_conversations_requesters_with_plocking(self) -> Generator[Iterable[int], None, None]:
