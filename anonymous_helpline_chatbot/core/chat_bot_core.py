@@ -3,7 +3,7 @@ from typing import Set, Any, Callable, Optional, Generator
 
 from .db_connector import DatabaseConnectionPool
 from .users import UsersController
-from .conversations import ConversationsController
+from .conversations import ConversationsController, Conversing
 from .invitations import InvitationsController
 
 
@@ -59,18 +59,17 @@ class ChatBotCore:
             yield res
 
     @contextmanager
-    def end_conversation_or_cancel_request_with_plocking(self,
-                                                         client_chat_id: int) -> Generator[Optional[int], None, None]:
-        with self._conversations_controller.end_conversation_or_cancel_request_with_plocking(client_chat_id) as \
-                operator_chat_id:
-
-            if operator_chat_id == -1:
-                self._invitations_controller.clear_invitations_to_client(client_chat_id)
-            elif operator_chat_id is not None:
+    def end_conversation_or_cancel_request_with_plocking(self, chat_id: int) -> Generator[Conversing, None, None]:
+        with self._conversations_controller.end_conversation_or_cancel_request_with_plocking(chat_id) as \
+                (client_chat_id, operator_chat_id):
+            if operator_chat_id is not None:
                 self._invitations_controller.invite_for_operator(operator_chat_id)
+
                 # If this conversation's client is an operator, restore invitations for him, too.
                 # Note: not trying to synchronize with the operators list, because it is expected to not change
                 # while the application is running.
                 if self._users_controller.is_operator(client_chat_id):
                     self._invitations_controller.invite_for_operator(client_chat_id)
-            yield operator_chat_id
+            elif client_chat_id is not None:
+                self._invitations_controller.clear_invitations_to_client(client_chat_id)
+            yield client_chat_id, operator_chat_id
