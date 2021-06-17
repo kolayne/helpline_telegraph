@@ -28,18 +28,27 @@ class InvitationsController:
 
         # Unless message sending failed for some internal front-end reason, store invitation in the database
         if sent_message_id is not None:
-            # Note: not using `try ... except psycopg2.errors.UniqueViolation ...`, but instead
-            # `... ON CONFLICT ... DO NOTHING ... if cursor.rowcount == 0 ...`, because an error occurring in the query
-            # would cause the whole transaction to be aborted. But the transaction has been started outside of this
-            # function, and some important changes might have been done within it, and they need to be committed even if
-            # an invitation leak has occurred
-            cursor.execute("INSERT INTO sent_invitations(operator_chat_id, client_chat_id, invitation_message_id) "
-                           "VALUES (%s, %s, %s) "
-                           "ON CONFLICT (operator_chat_id, client_chat_id) DO NOTHING",
-                           (operator_chat_id, client_chat_id, sent_message_id))
-            if cursor.rowcount == 0:
-                print("Warning: an invitation leak has occurred. Dropping one of the invitation messages", file=stderr)
+            try:
+                # Invitation leak protection.
+                # Note: if there is a conflict, the exception won't be raised, because of `ON CONFLICT DO NOTHING`.
+                # We'll check if there was a problem based on `cursor.rowcount`. That's on purpose: we don't want an
+                # exception to be raised here, because if it is raised, the current transaction of `cursor` (which was
+                # started outside of this function and might contain some important changes already) will be aborted
+                cursor.execute("INSERT INTO sent_invitations(operator_chat_id, client_chat_id, invitation_message_id) "
+                               "VALUES (%s, %s, %s) "
+                               "ON CONFLICT (operator_chat_id, client_chat_id) DO NOTHING",
+                               (operator_chat_id, client_chat_id, sent_message_id))
+                if cursor.rowcount == 0:
+                    print("Warning: an invitation leak has occurred. Dropping one of the invitation messages",
+                          file=stderr)
+                    self.delete_invitation_callback(operator_chat_id, sent_message_id)
+            except Exception:
+                # However, even if an exception was raised (for any reason other than
+                # `CONFLICT (operator_chat_id, client_chat_id)`, we still don't want the invitation to be leaked!
+                print("An exception occurred. It will be raised back, but now need to delete the leaked invitation "
+                      "first", file=stderr)
                 self.delete_invitation_callback(operator_chat_id, sent_message_id)
+                raise  # Raise the caught exception
 
     def invite_to_client(self, client_chat_id: int) -> None:
         """
