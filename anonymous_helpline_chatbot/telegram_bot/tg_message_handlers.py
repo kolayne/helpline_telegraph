@@ -19,8 +19,7 @@ def start_help_handler(message: telebot.types.Message):
                           "/end_conversation - Прекратить беседу или отменить запрос\n\n"
                           "Обратите внимание, что во время бесед вы:"
                           "1. Не увидите, как ваш собеседник печатает\n"
-                          "2. Не сможете редактировать или удалять сообщения\n"
-                          "3. Сможете отправлять только текстовые сообщения без форматирования")
+                          "2. Не сможете редактировать или удалять сообщения")
     core.add_user(message.chat.id)
 
 
@@ -78,7 +77,7 @@ def end_conversation_handler(message: telebot.types.Message):
             bot.send_message(operator_tg_id, f"Беседа с пользователем №{client_local_id} прекращена")
 
 
-@bot.message_handler(content_types=['text'])
+@bot.message_handler(content_types=AnyContentType())
 @nonfalling_handler
 def text_message_handler(message: telebot.types.Message):
     with core.get_conversing_with_plocking(message.chat.id) as (client_tg_id, operator_tg_id):
@@ -110,17 +109,7 @@ def text_message_handler(message: telebot.types.Message):
                     bot.reply_to(message, "Эта беседа уже завершилась. Вы не можете ответить на это сообщение")
                     return
 
-        for entity in message.entities or []:
-            if entity.type in ('mention', 'bot_command'):
-                continue
-            if entity.type == 'url' and message.text[entity.offset: entity.offset + entity.length] == entity.url:
-                continue
-
-            bot.reply_to(message, "Это сообщение содержит форматирование, которое сейчас не поддерживается. Оно будет "
-                                  "отправлено с потерей форматирования. Мы работаем над этим")
-            break
-
-        sent = bot.send_message(interlocutor_id, message.text, reply_to_message_id=reply_to)
+        sent = bot.copy_message(interlocutor_id, message.chat.id, message.message_id, reply_to_message_id=reply_to)
 
         with core._users_controller._conn_pool.PrettyCursor() as cursor:
             # Storing this message in two ways: both as if it was send by the client and by the operator. This way, we
@@ -129,11 +118,5 @@ def text_message_handler(message: telebot.types.Message):
             query = "INSERT INTO reflected_messages(interlocutor1_chat_id, interlocutor1_message_id, " \
                     "interlocutor2_chat_id, interlocutor2_message_id) " \
                     "VALUES (%s, %s, %s, %s)"
-            cursor.execute(query, (message.chat.id, message.message_id, sent.chat.id, sent.message_id))
-            cursor.execute(query, (sent.chat.id, sent.message_id, message.chat.id, message.message_id))
-
-
-@bot.message_handler(content_types=AnyContentType())
-@nonfalling_handler
-def another_content_type_handler(message: telebot.types.Message):
-    bot.reply_to(message, "Сообщения этого типа не поддерживаются. Свяжитесь с @kolayne, чтобы добавить поддержку")
+            cursor.execute(query, (message.chat.id, message.message_id, interlocutor_id, sent.message_id))
+            cursor.execute(query, (interlocutor_id, sent.message_id, message.chat.id, message.message_id))
