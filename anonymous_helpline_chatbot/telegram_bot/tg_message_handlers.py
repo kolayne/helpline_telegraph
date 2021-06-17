@@ -20,7 +20,7 @@ def start_help_handler(message: telebot.types.Message):
                           "Обратите внимание, что во время бесед вы:"
                           "1. Не увидите, как ваш собеседник печатает\n"
                           "2. Не сможете редактировать или удалять сообщения")
-    core.add_user(message.chat.id)
+    core.add_user_if_not_exists(message.chat.id)
 
 
 @bot.message_handler(commands=['request_conversation'])

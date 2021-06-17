@@ -7,7 +7,7 @@ class UsersController:
     def __init__(self, database_connection_pool: DatabaseConnectionPool):
         self._conn_pool = database_connection_pool
 
-    def add_user(self, chat_id: int) -> None:
+    def add_user_if_not_exists(self, chat_id: int) -> None:
         with self._conn_pool.PrettyCursor() as cursor:
             cursor.execute("INSERT INTO users(chat_id) VALUES (%s) ON CONFLICT DO NOTHING", (chat_id,))
 
