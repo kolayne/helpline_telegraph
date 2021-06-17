@@ -14,7 +14,13 @@ class AnyContentType:
 @bot.message_handler(commands=['start', 'help'])
 @nonfalling_handler
 def start_help_handler(message: telebot.types.Message):
-    bot.reply_to(message, "Привет. /request_conversation, чтобы начать беседу, /end_conversation - чтобы завершить")
+    bot.reply_to(message, "Привет! Мои команды:\n"
+                          "/request_conversation - Запросить анонимную беседу с оператором\n"
+                          "/end_conversation - Прекратить беседу или отменить запрос\n\n"
+                          "Обратите внимание, что во время бесед вы:"
+                          "1. Не увидите, как ваш собеседник печатает\n"
+                          "2. Не сможете редактировать или удалять сообщения\n"
+                          "3. Сможете отправлять только текстовые сообщения без форматирования")
     core.add_user(message.chat.id)
 
 
