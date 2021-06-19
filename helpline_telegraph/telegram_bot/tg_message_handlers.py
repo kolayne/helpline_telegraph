@@ -17,7 +17,7 @@ def start_help_handler(message: telebot.types.Message):
     bot.reply_to(message, "Привет! Мои команды:\n"
                           "/request_conversation - Запросить анонимную беседу с оператором\n"
                           "/end_conversation - Прекратить беседу или отменить запрос\n\n"
-                          "Обратите внимание, что во время бесед вы:"
+                          "Обратите внимание, что во время бесед вы:\n"
                           "1. Не увидите, как ваш собеседник печатает\n"
                           "2. Не сможете редактировать или удалять сообщения")
     core.add_user_if_not_exists(message.chat.id)
